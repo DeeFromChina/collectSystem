@@ -1,0 +1,41 @@
+2016.04.01 16:40:26  INFO : 未设置数据通讯端口，系统采用默认端口。
+ 2016.04.01 16:42:00  INFO : 未设置数据通讯端口，系统采用默认端口。
+ 2016.04.01 16:44:06  INFO : 启动数据通讯......
+ 2016.04.01 16:44:06  INFO : 数据通讯已启动。
+ 2016.04.01 16:47:44 ERROR : [Ljava.lang.StackTraceElement;@7825d2b2
+ 2016.04.01 16:49:34 ERROR : [Ljava.lang.StackTraceElement;@630045eb
+ 2016.04.01 16:52:04  INFO : 启动数据通讯......
+ 2016.04.01 16:52:04  INFO : 数据通讯已启动。
+ 2016.04.01 16:52:15 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 16:57:01 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:00:30  INFO : 启动数据通讯......
+ 2016.04.01 17:00:30  INFO : 数据通讯已启动。
+ 2016.04.01 17:08:58 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:09:02 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:09:27 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:11:37  INFO : 启动数据通讯......
+ 2016.04.01 17:11:37  INFO : 数据通讯已启动。
+ 2016.04.01 17:12:32 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:13:07  INFO : 启动数据通讯......
+ 2016.04.01 17:14:57 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:15:46 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:22:50 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:22:55 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:39:57 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 17:52:24  INFO : 启动数据通讯......
+ 2016.04.01 17:52:24  INFO : 数据通讯已启动。
+ 2016.04.01 17:53:54 ERROR : java.lang.String cannot be cast to org.jboss.netty.buffer.ChannelBuffer
+ 2016.04.01 18:03:16  INFO : 启动数据通讯......
+ 2016.04.01 18:03:16  INFO : 数据通讯已启动。
+ 2016.04.01 18:05:45 ERROR : java.lang.String cannot be cast to org.jboss.netty.buffer.ChannelBuffer
+ 2016.04.01 18:07:05  INFO : 启动数据通讯......
+ 2016.04.01 18:07:05  INFO : 数据通讯已启动。
+ 2016.04.01 18:08:56 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 18:09:35 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 18:10:10 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 18:10:47 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 18:14:06 ERROR : unsupported message type: class java.lang.String
+ 2016.04.01 18:15:16 ERROR : 远程主机强迫关闭了一个现有的连接。
+ 2016.04.01 18:16:14  INFO : 启动数据通讯......
+ 2016.04.01 18:16:14  INFO : 数据通讯已启动。
+ 

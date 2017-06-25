@@ -1,0 +1,207 @@
+package com.golead.dasService.service;
+
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.Constant;
+import com.golead.dasService.common.utils.DateUtil;
+import com.golead.dasService.common.utils.FileUtil;
+import com.golead.dasService.common.utils.ZipUtil;
+
+public class DataCollectProcess extends Thread {
+
+   private static Logger logger = Logger.getLogger(DataCollectProcess.class);
+
+   private Properties    properties;
+
+   private final Date    startDate;
+
+   private final Date    endDate;
+
+   private Connection    connection;
+
+   public DataCollectProcess(Map<String, Object> initParameters) {
+      this.properties = (Properties) initParameters.get("properties");
+      this.startDate = (Date) initParameters.get("startDate");
+      this.endDate = (Date) initParameters.get("endDate");
+   }
+
+   public void run() {
+      logger.info("数据采集开始。");
+      try {
+         Class.forName("interbase.interclient.Driver");
+      } catch (ClassNotFoundException e) {
+         logger.error("找不到数据库驱动程序。");
+         return;
+      }
+      openConnection();
+      generateData();
+      closeConnection();
+      logger.info("数据采集结束。");
+   }
+
+   private void generateData() {
+      String packageName = null;
+      try {
+//         Enumeration<URL> urls = Thread.currentThread().getContextClassLoader().getResources("com/golead/dasService/dao");
+       Enumeration<URL> urls = this.getContextClassLoader().getResources("com/golead/dasService/dao");
+         while (urls.hasMoreElements()) {
+            URL url = urls.nextElement();
+            packageName = url.getPath();
+            break;
+         }
+      } catch (IOException e1) {
+         logger.error("找不到数据集。");
+      }
+
+      if (packageName == null) return;
+
+      String catalogName = DateUtil.getTimeStamp();
+      Properties cfg = FileUtil.loadDataCfg(catalogName);
+      cfg.setProperty("station.id", properties.getProperty("stationID"));
+      cfg.setProperty("station.name", properties.getProperty("stationName"));
+      cfg.setProperty("catalog.name", catalogName);
+      cfg.setProperty("catalog.path", Constant.DIR_DAT + catalogName + File.separator);
+      cfg.setProperty("catalog.createTime", DateUtil.lFormat(new Date()));
+      cfg.setProperty("catalog.status", Constant.STATUS_START);
+      cfg.setProperty("catalog.startDate", DateUtil.lFormat(startDate));
+      cfg.setProperty("catalog.endDate", DateUtil.lFormat(endDate));
+      FileUtil.saveDataCfg(catalogName, cfg);
+      logger.info("生成数据配置文件：" + Constant.DIR_DAT + catalogName + Constant.SFX_CFG);
+
+      boolean collectResult = true;
+      Properties latestCollectStatus = FileUtil.loadLatestCollectStatus();
+
+      String[] list = null;
+      logger.info("packageName:" + packageName);
+
+//      int idx = packageName.indexOf("jar!");
+//      if (idx > 0) {
+//         List<String> lst = new ArrayList<String>();
+//         File jarFile = new File(packageName.substring(0, idx));
+//         JarInputStream jarInput;
+//         try {
+//            jarInput = new JarInputStream(new BufferedInputStream(new FileInputStream(jarFile)));
+//            JarEntry entry = jarInput.getNextJarEntry();
+//            while (entry != null) {
+//               if (entry.getName().startsWith("com/golead/dasService/dao/")) {
+//                  lst.add(entry.getName().replaceAll("com/golead/dasService/dao/", ""));
+//               }
+//               entry = jarInput.getNextJarEntry();
+//            }
+//         } catch (IOException e) {
+//            logger.error("找不到数据类。");
+//         }
+//      }
+//      else {
+         File file = new File(packageName);
+         logger.info("packageFile:" + file.getAbsolutePath());
+         list = file.list();
+//      }
+
+      try {
+         for (String f : list) {
+            if (!f.startsWith("Collect")) continue;
+            String className = f.replaceAll(".class", "");
+            Class<?> cc = Class.forName("com.golead.dasService.dao." + className);
+            Object object = cc.newInstance();
+            CollectInterface tc = (CollectInterface) object;
+            tc.init(catalogName, connection, properties);
+
+            Map<String, Object> paras = new HashMap<String, Object>();
+            paras.put("startDate", startDate);
+            paras.put("endDate", endDate);
+            boolean res = tc.goCollection(paras);
+
+            if (res) {
+               latestCollectStatus.put("data." + tc.getFileName() + ".lastDate", DateUtil.lFormat(endDate));
+               latestCollectStatus.put("data." + tc.getFileName() + ".lastStatus", "finish");
+            }
+            else {
+               latestCollectStatus.put("data." + tc.getFileName() + ".lastErrorDate", DateUtil.lFormat(endDate));
+               latestCollectStatus.put("data." + tc.getFileName() + ".lastStatus", "error");
+            }
+
+            FileUtil.saveLatestCollectStatus(latestCollectStatus);
+
+            if (collectResult) collectResult = res;
+         }
+
+         if (collectResult) {
+            latestCollectStatus.put("collect.lastDate", DateUtil.lFormat(new Date()));
+            latestCollectStatus.put("collect.lastStatus", "finish");
+         }
+         else {
+            latestCollectStatus.put("collect.lastErrorDate", DateUtil.lFormat(new Date()));
+            latestCollectStatus.put("collect.lastStatus", "error");
+         }
+         FileUtil.saveLatestCollectStatus(latestCollectStatus);
+
+         cfg = FileUtil.loadDataCfg(catalogName);
+         cfg.setProperty("catalog.collectedTime", DateUtil.lFormat(new Date()));
+         cfg.setProperty("catalog.status", Constant.STATUS_COLLECTED);
+
+         String targetPath = ZipUtil.zip(cfg.getProperty("catalog.path"), ZipUtil.PASSWD);
+         if (targetPath != null) {
+            cfg.setProperty("catalog.zipTime", DateUtil.lFormat(new Date()));
+            cfg.setProperty("catalog.status", Constant.STATUS_ZIP);
+            cfg.setProperty("catalog.md5", FileUtil.md5File(targetPath));
+         }
+
+         FileUtil.saveDataCfg(catalogName, cfg);
+         logger.info("更新数据配置文件：" + Constant.DIR_DAT + catalogName + Constant.SFX_CFG);
+
+      } catch (ClassNotFoundException e) {
+         logger.error("找不到数据类。");
+      } catch (InstantiationException e) {
+         logger.error("找不到数据类。");
+      } catch (IllegalAccessException e) {
+         logger.error("找不到数据类。");
+      }
+   }
+
+   private void openConnection() {
+      String hostname = properties.getProperty("server.severName");
+      String port = properties.getProperty("server.port");
+      String databaseName = properties.getProperty("server.dbName");
+      String userName = properties.getProperty("server.userName");
+      String password = properties.getProperty("server.password");
+      String url = "jdbc:interbase://" + hostname + ":" + port + "/" + databaseName;
+
+      try {
+         connection = DriverManager.getConnection(url, userName, password);
+         logger.info("数据库已连接。");
+      } catch (SQLException e) {
+         logger.error("数据库连接失败。");
+         connection = null;
+      }
+   }
+
+   private void closeConnection() {
+      try {
+         if (connection != null && !connection.isClosed()) {
+            connection.close();
+            logger.info("数据库已关闭。");
+         }
+      } catch (SQLException e) {
+         logger.error("数据库关闭失败。");
+      }
+   }
+}

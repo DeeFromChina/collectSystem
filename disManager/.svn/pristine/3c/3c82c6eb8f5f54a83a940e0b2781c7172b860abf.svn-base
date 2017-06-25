@@ -1,0 +1,366 @@
+package com.golead.disManager.ui.window;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TableViewerColumn;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.MouseAdapter;
+import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.ToolBar;
+import org.eclipse.swt.widgets.ToolItem;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import swing2swt.layout.BorderLayout;
+
+import com.golead.disManager.ui.dialog.ConfigDialog;
+import com.golead.disManager.communication.CommunicationClient;
+import com.golead.disManager.communication.CommunicationClientCallback;
+import com.golead.disManager.dao.JdbcDao;
+import com.golead.disManager.dao.model.Company;
+import com.golead.disManager.ui.dialog.AboutDialog;
+import com.golead.disManager.ui.provider.StationContentProvider;
+import com.golead.disManager.ui.provider.StationTableLabelProvider;
+import com.golead.disManager.util.Util;
+
+public class DisWindow {
+
+   protected Shell                          shell;
+
+   private Map<String, CommunicationClient> commClients;
+   private JdbcDao                          jdbcDao;
+   private Properties                       properties;
+   private List<Company>                    companies;
+
+   private Display                          display;
+   private Table                            tblDataLoad;
+   private Table                            tblStation;
+   private TableViewer                      tbvStation;
+
+   public DisWindow(Properties properties) {
+      this.properties = properties;
+   }
+
+   /**
+    * Open the window.
+    */
+   public void open() {
+      display = Display.getDefault();
+      createContents();
+
+      commClients = new HashMap<String, CommunicationClient>();
+      // jdbcDao = new JdbcDao(properties);
+
+      // loadCompany();
+
+      List<Map<String, Object>> data = new ArrayList<Map<String, Object>>();
+      Map<String, Object> map = new HashMap<String, Object>();
+      map.put("no", "1");
+      map.put("orgName", "郑州分公司");
+      map.put("stationName", "郑州第一加油站");
+      map.put("transDate", "2016-04-29 13:21:34");
+      map.put("status", "已发送");
+      map.put("memo", "说明");
+      map.put("id", 2000);
+      map.put("ip", "192.168.1.116");
+      map.put("port", "15421");
+      data.add(map);
+      Map<String, Object> map1 = new HashMap<String, Object>();
+      map1.put("no", "2");
+      map1.put("orgName", "郑州分公司");
+      map1.put("stationName", "郑州第二加油站");
+      map1.put("transDate", "2016-04-29 13:21:34");
+      map1.put("status", "已发送");
+      map1.put("memo", "说明");
+      map1.put("id", 2001);
+      map1.put("ip", "192.168.1.116");
+      map1.put("port", "15421");
+      data.add(map1);
+      Map<String, Object> map2 = new HashMap<String, Object>();
+      map2.put("no", "3");
+      map2.put("orgName", "郑州分公司");
+      map2.put("stationName", "郑州第三加油站");
+      map2.put("transDate", "2016-04-29 13:21:34");
+      map2.put("status", "已发送");
+      map2.put("memo", "说明");
+      map2.put("id", 2002);
+      map2.put("ip", "192.168.1.116");
+      map2.put("port", "15421");
+      data.add(map2);
+      tbvStation.setInput(data);
+
+      // TableItem item1 = new TableItem(tblStation, SWT.NONE);
+      // item1.setText(new String[] { "1", "郑州分公司", "郑州第一加油站",
+      // "2016-04-29 13:21:34", "已发送" });
+      // TableItem item2 = new TableItem(tblStation, SWT.NONE);
+      // item2.setText(new String[] { "2", "郑州分公司", "郑州第二加油站",
+      // "2016-04-29 13:21:34", "已发送" });
+      // TableItem item3 = new TableItem(tblStation, SWT.NONE);
+      // item3.setText(new String[] { "3", "郑州分公司", "郑州第三加油站",
+      // "2016-04-29 13:21:34", "已发送" });
+
+      shell.open();
+      shell.layout();
+      while (!shell.isDisposed()) {
+         if (!display.readAndDispatch()) {
+            display.sleep();
+         }
+      }
+   }
+
+   private void loadCompany() {
+      companies = new ArrayList<Company>();
+      jdbcDao.openConnection();
+      if (jdbcDao.getConnection() == null) {
+         Util.alert(display, "提示", "数据库连接失败！");
+         return;
+      }
+      String sql = "select id,orgCode,name,treelevel from sysorg order by treelevel";
+      try {
+         ResultSet rs = jdbcDao.query(sql);
+         while (rs != null && rs.next()) {
+            Company c = new Company();
+            c.setId(rs.getInt(0));
+            c.setCode(rs.getString(1));
+            c.setName(rs.getString(2));
+            companies.add(c);
+         }
+      } catch (SQLException e) {
+         e.printStackTrace();
+      }
+      jdbcDao.closeConnection();
+   }
+
+   private void deal(final String source, final String message) {
+      Runnable runThread = new Runnable() {
+         public void run() {
+            synchronized (this) {
+               // txtMessage.setText(source+":"+message);
+            }
+         }
+      };
+      display.asyncExec(runThread);
+   }
+
+   /**
+    * Create contents of the window.
+    * 
+    * @wbp.parser.entryPoint
+    */
+   protected void createContents() {
+      shell = new Shell();
+      shell.setSize(800, 500);
+      shell.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/monitor16.png"));
+      shell.setMaximized(true);
+      shell.setText("国力数据采集监控系统");
+      shell.setLayout(new swing2swt.layout.BorderLayout(0, 0));
+
+      ToolBar toolbar = new ToolBar(shell, SWT.FLAT);
+      toolbar.setFont(SWTResourceManager.getFont("微软雅黑", 12, SWT.NORMAL));
+      toolbar.setLayoutData(BorderLayout.NORTH);
+
+      ToolItem btnExit = new ToolItem(toolbar, SWT.NONE);
+      btnExit.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            int rc = Util.confirm(shell, "退出", "是否真的退出系统？");
+            if (rc == SWT.YES) System.exit(0);
+         }
+      });
+      btnExit.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/exit24.png"));
+      btnExit.setText("  退出  ");
+      
+            ToolItem btnStation = new ToolItem(toolbar, SWT.NONE);
+            btnStation.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/monitor24.png"));
+            btnStation.setText("加油站监控");
+
+      ToolItem btnDataLoad = new ToolItem(toolbar, SWT.NONE);
+      btnDataLoad.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/data24.png"));
+      btnDataLoad.setText("数据加载");
+
+      ToolItem btnLog = new ToolItem(toolbar, SWT.NONE);
+      btnLog.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/book24.png"));
+      btnLog.setText("加载日志");
+
+      ToolItem btnConfig = new ToolItem(toolbar, SWT.NONE);
+      btnConfig.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            ConfigDialog cd = new ConfigDialog(shell, SWT.NONE | SWT.APPLICATION_MODAL);
+            cd.open();
+         }
+      });
+      btnConfig.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/config24.png"));
+      btnConfig.setText("  配置  ");
+
+      ToolItem btnAbout = new ToolItem(toolbar, SWT.NONE);
+      btnAbout.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            AboutDialog cd = new AboutDialog(shell, SWT.NONE | SWT.APPLICATION_MODAL);
+            cd.open();
+         }
+      });
+      btnAbout.setImage(SWTResourceManager.getImage(DisWindow.class, "/images/about24.png"));
+      btnAbout.setText("关于系统");
+
+      TabFolder tabFolder = new TabFolder(shell, SWT.NONE);
+      tabFolder.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      tabFolder.setLayoutData(BorderLayout.CENTER);
+
+      TabItem tbniStation = new TabItem(tabFolder, SWT.NONE);
+      tbniStation.setText("   加油站   ");
+
+      tbvStation = new TableViewer(tabFolder, SWT.BORDER | SWT.FULL_SELECTION);
+      tblStation = tbvStation.getTable();
+      tblStation.setHeaderVisible(true);
+      tblStation.setLinesVisible(true);
+      tbniStation.setControl(tblStation);
+
+      TableViewerColumn tblvwcolNo = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolNo = tblvwcolNo.getColumn();
+      tblcolNo.setWidth(120);
+      tblcolNo.setText("加油站编号");
+
+      TableViewerColumn tblvwcolOrg = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolOrg = tblvwcolOrg.getColumn();
+      tblcolOrg.setWidth(200);
+      tblcolOrg.setText("所属分公司");
+
+      TableViewerColumn tblvwcolStation = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolStation = tblvwcolStation.getColumn();
+      tblcolStation.setWidth(250);
+      tblcolStation.setText("加油站名称");
+
+      TableViewerColumn tblvwcolDate = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolDate = tblvwcolDate.getColumn();
+      tblcolDate.setWidth(150);
+      tblcolDate.setText("最新传送时间");
+
+      TableViewerColumn tblvwcolStatus = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolStatus = tblvwcolStatus.getColumn();
+      tblcolStatus.setWidth(100);
+      tblcolStatus.setText("连接状态");
+
+      TableViewerColumn tblvwcolMemo = new TableViewerColumn(tbvStation, SWT.NONE);
+      TableColumn tblcolMemo = tblvwcolMemo.getColumn();
+      tblcolMemo.setWidth(600);
+      tblcolMemo.setText("说明");
+
+      tbvStation.setContentProvider(new StationContentProvider());
+      tbvStation.setLabelProvider(new StationTableLabelProvider());
+
+      Menu popStation = new Menu(tblStation);
+      tblStation.setMenu(popStation);
+
+      MenuItem popItemConnect = new MenuItem(popStation, SWT.NONE);
+      popItemConnect.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            TableItem[] tableItems = tblStation.getSelection();
+            if (tableItems.length == 0) return;
+            Map<String, Object> map = (Map<String, Object>) tableItems[0].getData();
+            CommunicationClient commClient = commClients.get(map.get("id").toString());
+            if (commClient == null) {
+               commClient = new CommunicationClient(map.get("ip").toString(), new Integer(map.get("port").toString()), new CommunicationClientCallback() {
+                  @Override
+                  public void command(String source, String message) {
+                     deal(source, message);
+                  }
+               });
+               commClient.start();
+               commClients.put(map.get("id").toString(), commClient);
+            }
+            else if (commClient.getStatus() == CommunicationClient.CONN_STATUS_CONNECT) {
+               Util.alert(shell, "提示", "服务器已连接。");
+            }
+         }
+      });
+      popItemConnect.setText("连接加油站");
+
+      MenuItem popItemDisconnect = new MenuItem(popStation, SWT.NONE);
+      popItemDisconnect.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            CommunicationClient commClient = commClients.get("192.168.1.116");
+            if (commClient == null) {
+               Util.alert(shell, "提示", "服务器未连接。");
+               return;
+            }
+            if (commClient.getStatus() == CommunicationClient.CONN_STATUS_CONNECT) {
+               commClient.close();
+               commClients.remove("192.168.1.116");
+            }
+            else {
+               Util.alert(shell, "提示", "服务器未连接。");
+            }
+         }
+      });
+      popItemDisconnect.setText("断开连接");
+
+      MenuItem menuItem = new MenuItem(popStation, SWT.SEPARATOR);
+
+      MenuItem popItemCommand = new MenuItem(popStation, SWT.NONE);
+      popItemCommand.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            CommunicationClient commClient = commClients.get("192.168.1.116");
+            if (commClient == null) {
+               Util.alert(shell, "提示", "服务器还未连接。");
+               return;
+            }
+            if (commClient.getStatus() == CommunicationClient.CONN_STATUS_CONNECT) {
+               commClient.send("echo");
+            }
+            else {
+               Util.alert(shell, "提示", "服务器还未连接。");
+            }
+         }
+      });
+      popItemCommand.setText("命令");
+
+      TabItem tbniDataLoad = new TabItem(tabFolder, SWT.NONE);
+      tbniDataLoad.setText("  数据加载  ");
+
+      tblDataLoad = new Table(tabFolder, SWT.BORDER | SWT.FULL_SELECTION);
+      tblDataLoad.addMouseListener(new MouseAdapter() {
+         @Override
+         public void mouseDown(MouseEvent e) {
+         }
+      });
+      tbniDataLoad.setControl(tblDataLoad);
+      tblDataLoad.setHeaderVisible(true);
+      tblDataLoad.setLinesVisible(true);
+
+      Menu popDataLoad = new Menu(shell);
+      tblDataLoad.setMenu(popDataLoad);
+      MenuItem popItem = new MenuItem(popDataLoad, SWT.NONE);
+      popItem.setText("New Item");
+
+      MenuItem mntmNewItem_1 = new MenuItem(popDataLoad, SWT.NONE);
+      mntmNewItem_1.setText("New Item");
+
+      MenuItem mntmNewItem_2 = new MenuItem(popDataLoad, SWT.NONE);
+      mntmNewItem_2.setText("New Item");
+
+      TabItem tbniLog = new TabItem(tabFolder, SWT.NONE);
+      tbniLog.setText("  数据日志  ");
+   }
+}

@@ -1,0 +1,33 @@
+package com.golead.dasService.dao;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.utils.DateUtil;
+import com.golead.dasService.service.CollectInterface;
+
+public class CollectAssetType extends BaseDataCollect implements CollectInterface {
+   
+   private static Logger    logger   = Logger.getLogger(CollectAssetType.class);
+   
+   public CollectAssetType() {
+      this.fileName = "ASSETTYPE";
+      this.primaryKey = "ASSETTYPEID";
+      this.dataName = "资产类型代码表";
+   }
+   
+   @Override
+   public String prepareSql(Map<String, Object> parameters) {
+	   return new StringBuffer("select * from ASSETTYPE").toString();
+   }
+   
+}

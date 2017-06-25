@@ -1,0 +1,21 @@
+package com.golead.rmi.impl;
+
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+
+import com.golead.rmi.DitTransfer;
+
+public class DitTransferImpl extends UnicastRemoteObject implements DitTransfer {
+   private static final long serialVersionUID = -4716817233718444223L;
+
+   public DitTransferImpl() throws RemoteException {
+      super();
+   }
+
+   @Override
+   public String transfer(String data) throws RemoteException {
+      System.out.println(data);
+      return "0";
+   }
+
+}

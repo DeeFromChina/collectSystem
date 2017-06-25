@@ -1,0 +1,19 @@
+#\u6d4b\u8bd5
+#Fri May 06 17:55:49 CST 2016
+server.password=masterkey
+running.status=enable
+running.cleanTime=14\:57
+ftpServer.severIP=192.168.0.130
+running.dataTransformTime=14\:40
+running.saveDay=1
+server.port=3050
+stationName=\u6d4b\u8bd5\u52a0\u6cb9\u7ad9
+running.dataCollectTime=15\:05
+ftpServer.userName=taiyang
+stationID=1022382000040002
+ftpServer.password=taiyang
+server.dbName=C\:\\Users\\Administrator\\Desktop\\PC_OFFICE.GDB
+running.timeInterval=day
+server.userName=SYSDBA
+server.severName=127.0.0.1
+ftpServer.port=21

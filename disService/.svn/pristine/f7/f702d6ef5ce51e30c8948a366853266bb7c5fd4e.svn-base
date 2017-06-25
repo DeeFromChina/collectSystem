@@ -1,0 +1,97 @@
+package com.golead.disService;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.disService.service.DataLoadProcess;
+
+public class DisService {
+
+	private static Logger logger = Logger.getLogger(DisService.class);
+
+	protected SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+
+	private Thread dataLoadProcess;
+
+	private Properties properties = new Properties();
+
+	private long lastModifyTime = 0;
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		DisService disService = new DisService();
+		disService.run();
+	}
+
+	private void run() {
+		boolean result = getProperties();// 读取系统配置文件。如果失败，不能启动数据加载服务。
+		if (!result) {
+			logger.info("数据加载服务未启动。");
+			return;
+		}
+		while (true) {
+			try {
+				boolean res = getProperties();
+				if (res) {
+					goService();
+				} else {
+					logger.info("数据采集服务未启动。");
+				}
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	private void goService() throws InterruptedException {
+		startLoadData();
+	}
+
+	private int startLoadData() throws InterruptedException {
+		// 避免数据采集进程重复启动。
+		if (dataLoadProcess != null && dataLoadProcess.isAlive()) {
+			logger.info("数据采集进行中，不能启动新的数据加载进程。......");
+			return 1;
+		}
+
+		Map<String, Object> initParameters = new HashMap<String, Object>();
+		initParameters.put("properties", properties);
+		dataLoadProcess = new DataLoadProcess(initParameters);
+		dataLoadProcess.start();
+		
+		Thread.sleep(1000 * Integer.valueOf(properties.getProperty("running.interval.second")));
+		return 0;
+	}
+
+	public boolean getProperties() {
+		File file = new File("config.properties");
+		long time = file.lastModified();
+		if (lastModifyTime >= time)
+			return true;
+		else
+			lastModifyTime = time;
+
+		try {
+			Properties prop = new Properties();
+			InputStream in = new FileInputStream(System.getProperty("user.dir") + File.separator + "config.properties");
+			prop.load(in);
+			properties.clear();
+			properties.putAll(prop);
+			return true;
+		} catch (IOException e) {
+			logger.error("读取配置文件config.properties错误。");
+			return false;
+		}
+	}
+}

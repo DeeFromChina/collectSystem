@@ -1,0 +1,6 @@
+2016.12.26 10:48:21  INFO : 数据采集开始。
+2016.12.26 10:48:23 ERROR : 数据库连接失败。
+2016.12.26 10:48:23  INFO : 生成数据配置文件：E:\workspace\dasManager\dat\20161226104823.cfg
+2016.12.26 10:48:23  INFO : packageName:/E:/workspace/dasManager/bin/com/golead/dasService/dao
+2016.12.26 10:48:23  INFO : packageFile:E:\workspace\dasManager\bin\com\golead\dasService\dao
+2016.12.26 10:48:23  INFO : 数据传送开始

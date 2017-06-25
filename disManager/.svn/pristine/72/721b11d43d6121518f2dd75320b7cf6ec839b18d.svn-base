@@ -1,0 +1,13 @@
+#数据加载配置
+#Mon Jul 25 17:32:24 CST 2016
+ftpServer.dasDataDir=C:\\project_eclipse\\dataCenter\\ftpDir\\dasData
+ftpServer.keep.days=30
+running.interval.second=60
+running.status=enable
+server.dbName=orcl
+server.dc.password=abcd12345
+server.dc.userName=DATACENTER
+server.password=accounting
+server.port=1521
+server.severName=10.206.159.16
+server.userName=accounting

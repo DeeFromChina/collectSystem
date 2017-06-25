@@ -1,0 +1,36 @@
+2016.03.28 17:58:00  INFO DataCollectProcess(35):? 数据采集开始。
+ 2016.03.28 17:58:00  INFO DataCollectProcess(117):? 数据库已连接。
+ 2016.03.28 17:58:00  INFO CollectAddrType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160328175800.dat
+ 2016.03.28 17:58:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160328175800.cfg
+ 2016.03.28 17:58:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE.properties
+ 2016.03.28 17:58:00  INFO CollectAssetType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160328175800.dat
+ 2016.03.28 17:58:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160328175800.cfg
+ 2016.03.28 17:58:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE.properties
+ 2016.03.28 17:58:00  INFO CollectTrade(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160328175800.dat
+ 2016.03.28 17:58:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160328175800.cfg
+ 2016.03.28 17:58:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade.properties
+ 2016.03.28 17:58:00  INFO DataCollectProcess(128):? 数据库已关闭。
+ 2016.03.28 17:58:00  INFO DataCollectProcess(45):? 数据采集结束。
+ 2016.03.28 17:59:00  INFO DataTransformProcess(68):? 数据采集开始。
+ 2016.03.28 17:59:00  INFO DataTransformProcess(157):? ftp服务器已连接。
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ADDRTYPE20160323145200.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ADDRTYPE20160323145200.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ADDRTYPE20160323145600.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ADDRTYPE20160323145600.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ADDRTYPE20160328175800.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ADDRTYPE20160328175800.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ASSETTYPE20160323145200.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ASSETTYPE20160323145200.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ASSETTYPE20160323145600.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ASSETTYPE20160323145600.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：ASSETTYPE20160328175800.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：ASSETTYPE20160328175800.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：trade20160323145200.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：trade20160323145200.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：trade20160323145600.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：trade20160323145600.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(120):? 文件上传成功：trade20160328175800.dat
+ 2016.03.28 17:59:00  INFO DataTransformProcess(131):? 文件上传成功：trade20160328175800.cfg
+ 2016.03.28 17:59:00  INFO DataTransformProcess(178):? ftp服务器已关闭。
+ 2016.03.28 17:59:00  INFO DataTransformProcess(86):? 数据采集结束。
+ 

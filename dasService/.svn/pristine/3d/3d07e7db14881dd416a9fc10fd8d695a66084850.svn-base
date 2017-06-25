@@ -1,0 +1,272 @@
+package com.golead.dasService;
+
+import io.netty.bootstrap.ServerBootstrap;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.Constant;
+import com.golead.dasService.common.utils.DateUtil;
+import com.golead.dasService.common.utils.FileUtil;
+import com.golead.dasService.communication.CommunicationCallback;
+import com.golead.dasService.communication.CommunicationService;
+import com.golead.dasService.filter.NameFilter;
+import com.golead.dasService.service.DataCleanProcess;
+import com.golead.dasService.service.DataCollectProcess;
+import com.golead.dasService.service.DataTransferProcess;
+import com.golead.dasService.service.LogCleanProcess;
+import com.golead.dasService.service.ReceiveMessage;
+
+public class DasService {
+
+   private static Logger      logger         = Logger.getLogger(DasService.class);
+
+   private boolean            status         = true;
+
+   protected SimpleDateFormat sdf            = new SimpleDateFormat("yyyyMMddHHmmss");
+
+   private Thread             dataCollectProcess;
+
+   private Thread             dataTransferProcess;
+   
+   private Thread             dataCleanProcess;
+   
+   private Thread             logCleanProcess;
+
+   private Thread             communicationService;
+   
+   private Properties         properties     = new Properties();
+
+   private long               lastModifyTime = 0;
+
+   public static void main(String[] args) {
+	   new DasService().run();
+   }
+   
+   private void run() {
+      boolean result = getProperties();// 读取系统配置文件。如果失败，不能启动数据采集服务。
+      if (!result) {
+         logger.info("数据采集服务未启动。");
+         return;
+      }
+      startCommServer();
+      while (true) {
+         try {
+            boolean res = getProperties();// 读取系统配置文件。如果失败，不能启动数据采集服务。
+            if (res) {
+               goService();
+            }
+            else {
+               logger.info("数据采集服务未启动。");
+            }
+            // 每隔一秒钟检测一次。
+            Thread.sleep(1000);
+         } catch (InterruptedException e) {
+            e.printStackTrace();
+         }
+      }
+   }
+
+   private void startCommServer() {
+      Integer port = 15432;
+      String p = properties.getProperty("commPort");
+      String ip = properties.getProperty("ftpServer.severIP");
+      if (p != null && !"".equals(p.trim())) {
+         try {
+            port = new Integer(p.trim());
+         } catch (Exception e) {
+            logger.error("数据通讯端口设置错误：commServer=" + p + "，系统采用默认端口。");
+            port = 15432;
+         }
+      }
+      else {
+         logger.info("未设置数据通讯端口，系统采用默认端口。");
+         port = 15432;
+      }
+
+      logger.info("启动数据通讯，端口号：" + port + " ......");
+      communicationService = new CommunicationService(port, new CommunicationCallback() {
+         @Override
+         public void command(String source, String message) {
+            logger.info(message);
+         }
+      });
+      communicationService.start();
+//      clientSocket = new ReceiveMessage(port,ip);
+//      clientSocket.start();
+   }
+
+   public boolean getProperties() {
+      File file = new File("config.properties");
+      long time = file.lastModified();
+      if (lastModifyTime >= time) return true;
+      else lastModifyTime = time;
+
+      try {
+         Properties prop = new Properties();
+         InputStream in = new FileInputStream(System.getProperty("user.dir") + File.separator + "config.properties");
+         prop.load(in);
+         properties.clear();
+         properties.putAll(prop);
+         String sta = properties.getProperty("running.status");
+         if (sta != null && "enable".equalsIgnoreCase(sta)) status = true;
+         else status = false;
+         return true;
+      } catch (IOException e) {
+         logger.error("读取配置文件config.properties错误。");
+         return false;
+      }
+   }
+
+   private void goService() throws InterruptedException {
+      if (!status) return;
+      String collectTime = properties.getProperty("running.dataCollectTime");
+      if (collectTime == null) {
+         logger.info("未设置数据自动采集时间。");
+         return;
+      }
+      String[] ct = collectTime.trim().split(":");
+      if (ct[0].trim().equals("")) {
+         logger.info("未设置数据自动采集时间。");
+         return;
+      }
+      Integer h1 = new Integer(ct[0]);
+      Integer m1 = (ct.length == 1 || ct[1].trim().equals("")) ? 0 : new Integer(ct[1]);
+
+      String transformTime = properties.getProperty("running.dataTransformTime");
+      if (transformTime == null) {
+         logger.info("未设置数据自动传送时间。");
+         return;
+      }
+      String[] tt = transformTime.trim().split(":");
+      if (tt[0].trim().equals("")) {
+         logger.info("未设置数据自动传送时间。");
+         return;
+      }
+      Integer h2 = new Integer(tt[0]);
+      Integer m2 = (tt.length == 1 || tt[1].trim().equals("")) ? 0 : new Integer(tt[1]);
+      
+      String cleanTime = properties.getProperty("running.cleanTime");
+      if (cleanTime == null) {
+         logger.info("未设置数据自动清除时间。");
+         return;
+      }
+      String[] cc = cleanTime.trim().split(":");
+      if (cc[0].trim().equals("")) {
+         logger.info("未设置数据自动清除时间。");
+         return;
+      }
+      Integer h3 = new Integer(cc[0]);
+      Integer m3 = (cc.length == 1 || cc[1].trim().equals("")) ? 0 : new Integer(cc[1]);
+      
+      String saveDay = properties.getProperty("running.saveDay");
+
+      Calendar calendar = Calendar.getInstance();
+      // 判断数据采集时间是否已到，如果到达采集时间启动数据采集任务。
+      if (h1 == calendar.get(Calendar.HOUR_OF_DAY) && m1 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 2) {
+    	  Properties latestCollectStatus = FileUtil.loadLatestCollectStatus();
+    	  Date sDate = DateUtil.lParse(String.valueOf(latestCollectStatus.get("collect.lastDate")));
+    	  Date eDate = new Date();
+    	  
+          if (sDate == null) {
+             Calendar c = Calendar.getInstance();
+             c.add(Calendar.YEAR, -10);
+             sDate = c.getTime();
+          }
+          
+          sDate = new Date(sDate.getTime() - 10000);
+    	  
+    	  startCollection(sDate, eDate);
+      }
+      // 判断数据传送时间是否已到，如果到达传送时间启动数据传送任务。
+      if (h2 == calendar.get(Calendar.HOUR_OF_DAY) && m2 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 2) {
+    	  File fileDir = new File(Constant.DIR_DAT);
+          File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+          startTransfer(list, Constant.STATUS_ZIP);
+      }
+      // 判断数据清除时间是否已到，如果到达清除时间启动数据清除任务。
+      if (h3 == calendar.get(Calendar.HOUR_OF_DAY) && m3 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 2) {
+        File fileDir = new File(Constant.DIR_DAT);
+        File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+        startClean(list,saveDay);
+      }
+      //00:00清除日志文件
+      if(00 == calendar.get(Calendar.HOUR_OF_DAY) && 00 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 2){
+         startCleanLog();
+      }
+   }
+
+   private int startCollection(Date startDate, Date endDate) throws InterruptedException {
+      // 避免数据采集进程重复启动。
+      if (dataCollectProcess != null && dataCollectProcess.isAlive()) {
+         logger.info("数据采集进行中，不能启动新的数据采集进程。......");
+         return 1;
+      }
+      
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      initParameters.put("startDate", startDate);
+      initParameters.put("endDate", endDate);
+      dataCollectProcess = new DataCollectProcess(initParameters);
+      dataCollectProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+
+   private int startTransfer(File[] fileList, String catalogStatus) throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (dataTransferProcess != null && dataTransferProcess.isAlive()) {
+         logger.info("数据传送进行中，不能启动新的数据传送进程。......");
+         return 1;
+      }
+      
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      initParameters.put("fileList", fileList);
+      initParameters.put("catalogStatus", catalogStatus);
+      dataTransferProcess = new DataTransferProcess(initParameters);
+      dataTransferProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+   
+   private int startClean(File[] fileList,String saveDay) throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (dataCleanProcess != null && dataCleanProcess.isAlive()) {
+         logger.info("数据清除进行中，不能启动新的数据清除进程。......");
+         return 1;
+      }
+      
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      initParameters.put("fileList", fileList);
+      initParameters.put("saveDay", saveDay);
+      dataCleanProcess = new DataCleanProcess(initParameters);
+      dataCleanProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+   
+   private int startCleanLog() throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (logCleanProcess != null && logCleanProcess.isAlive()) {
+         logger.info("日志清除进行中，不能启动新的日志清除进程。......");
+         return 1;
+      }
+      
+      logCleanProcess = new LogCleanProcess();
+      logCleanProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+}

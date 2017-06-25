@@ -1,0 +1,88 @@
+package com.golead.disManager.ui.dialog;
+
+import org.apache.log4j.Logger;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.golead.disManager.ui.composite.StationComposite;
+
+import swing2swt.layout.BorderLayout;
+
+public class MonitorDialog extends Dialog {
+
+   private static Logger      logger     = Logger.getLogger(MonitorDialog.class);
+   private Shell              shell;
+   private StationComposite   stationComposite;
+   private boolean       loaded = false;
+   /**
+    * Create the dialog.
+    * 
+    * @param parent
+    * @param style
+    */
+   public MonitorDialog(Shell parent, int style) {
+      super(parent, style);
+      setText("系统配置");
+   }
+
+   /**
+    * Open the dialog.
+    * 
+    * @return the result
+    */
+   public void open() {
+      Display display = Display.getDefault();
+      createContents();
+      loaded = true;
+      loadComposite(0);
+      shell.open();
+      shell.layout();
+      while (!shell.isDisposed()) {
+         if (!display.readAndDispatch()) {
+            display.sleep();
+         }
+      }
+   }
+
+   /**
+    * Create contents of the dialog.
+    */
+   private void createContents() {
+      shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE);
+      shell.setImage(SWTResourceManager.getImage(ConfigDialog.class, "/images/config24.png"));
+      shell.setText("系统配置");
+      shell.setSize(1000, 600);
+      shell.setLayout(new BorderLayout(0, 0));
+      Rectangle r = Display.getDefault().getBounds();
+      int shellH = shell.getBounds().height;
+      int shellW = shell.getBounds().width;
+      shell.setLocation((r.width - shellW) / 2, (r.height - shellH) / 2);
+
+      TabFolder tabFolder = new TabFolder(shell, SWT.BORDER);
+      tabFolder.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            if (!loaded) return;
+            int idx = ((TabFolder) e.getSource()).getSelectionIndex();
+            loadComposite(idx);
+         }
+      });
+      
+      TabItem tbtmDatalist = new TabItem(tabFolder, SWT.NONE);
+      tbtmDatalist.setText(" 加油站 ");
+      stationComposite = new StationComposite(tabFolder, SWT.NONE);
+      tbtmDatalist.setControl(stationComposite);
+   }
+   
+   private void loadComposite(int idx) {
+      if (idx == 0) stationComposite.Search();
+   }
+}

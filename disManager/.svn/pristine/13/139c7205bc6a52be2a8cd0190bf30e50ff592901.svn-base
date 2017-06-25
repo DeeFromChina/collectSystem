@@ -1,0 +1,6 @@
+package com.golead.disManager.communication;
+
+public class CommunicationClientCallback {
+   public void command(String source, String message) {
+   }
+}

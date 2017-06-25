@@ -1,0 +1,22 @@
+package com.golead.dasService.dao;
+
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.service.CollectInterface;
+
+public class CollectCheckItem extends BaseDataCollect implements CollectInterface {
+	private static Logger logger = Logger.getLogger(CollectCheckItem.class);
+
+	public CollectCheckItem() {
+		this.fileName = "CHECKITEM";
+		this.primaryKey = "ITEM_ID";
+		this.dataName = "检查项目代码表";
+	}
+
+	@Override
+	public String prepareSql(Map<String, Object> parameters) {
+		return new StringBuffer("select * from CHECKITEM").toString();
+	}
+}

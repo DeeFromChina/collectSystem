@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="dao"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7">
+		<attributes>
+			<attribute name="owner.project.facets" value="java"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="D:/java_jar/netty-4.0.36.Final/jar/netty-buffer-4.0.36.Final.jar"/>
+	<classpathentry kind="lib" path="D:/java_jar/netty-4.0.36.Final/jar/all-in-one/netty-all-4.0.36.Final.jar"/>
+	<classpathentry kind="lib" path="D:/java_jar/zip4j_1.3.1.jar"/>
+	<classpathentry kind="lib" path="D:/java_jar/log4j-1.2.17.jar"/>
+	<classpathentry kind="lib" path="D:/java_jar/ezmorph-1.0.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/art/web/WEB-INF/lib/commons-beanutils-1.8.0.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/dasManager/lib/commons-codec-1.10.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/art/web/WEB-INF/lib/commons-collections-3.1.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/art/web/WEB-INF/lib/commons-lang-2.5.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/art/web/WEB-INF/lib/commons-logging-1.1.3.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/art/web/WEB-INF/lib/json-lib-2.3-jdk15.jar"/>
+	<classpathentry kind="lib" path="E:/workspace/dasManager/lib/commons-net-3.4.jar"/>
+	<classpathentry kind="lib" path="/dasManager/lib/interclient.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

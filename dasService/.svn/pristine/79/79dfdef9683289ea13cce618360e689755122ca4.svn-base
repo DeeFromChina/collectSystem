@@ -1,0 +1,17 @@
+package com.golead.dasService.common;
+
+import java.io.File;
+
+public class Constant {
+
+   public static final String DIR_DAT          = System.getProperty("user.dir") + File.separator + "dat" + File.separator;
+   public static final String LOG_FILE         = System.getProperty("user.dir") + File.separator + "log" + File.separator + "dasService.log";
+
+   public static final String SFX_CFG          = ".cfg";
+
+   public static final String STATUS_START     = "start";
+   public static final String STATUS_COLLECTED = "collected";
+   public static final String STATUS_ZIP       = "zip";
+   public static final String STATUS_SENT      = "sent";
+   public static final String STATUS_ZIP_SENT  = "zipAndSent";
+}

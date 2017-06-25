@@ -1,0 +1,103 @@
+package com.golead.disManager.dao;
+
+import java.io.UnsupportedEncodingException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+public class JdbcDao {
+
+   private static Logger      logger = Logger.getLogger(JdbcDao.class);
+
+   private Properties         properties;
+
+   protected SimpleDateFormat sdf    = new SimpleDateFormat("yyyyMMddHHmmss");
+
+   private Connection         connection;
+
+   public JdbcDao(Properties properties) {
+      this.properties = properties;
+   }
+
+   public ResultSet query(String sql) {
+      Statement stmt = null;
+      ResultSet rs = null;
+      try {
+         stmt = connection.createStatement();
+         return stmt.executeQuery(sql);
+      } catch (SQLException e) {
+         logger.error("数据查询错误。");
+         logger.error(e);
+         return null;
+      } finally {
+         colseObject(stmt, rs);
+      }
+   }
+
+   public String genGBKString(byte[] bytes) throws UnsupportedEncodingException {
+      if (bytes == null) return "";
+      else return new String(bytes, "GBK");
+   }
+
+   
+   private void colseObject(Statement stmt, ResultSet rs) {
+      if (rs != null) {
+         try {
+            rs.close();
+            rs = null;
+         } catch (SQLException e) {
+            logger.error("数据集操作错误。");
+         }
+      }
+      if (stmt != null) {
+         try {
+            stmt.close();
+            stmt = null;
+         } catch (SQLException e) {
+            logger.error("数据集操作错误。");
+         }
+      }
+   }
+
+   public void openConnection() {
+      String hostname = properties.getProperty("server.severName");
+      String port = properties.getProperty("server.port");
+      String databaseName = properties.getProperty("server.dbName");
+      String userName = properties.getProperty("server.userName");
+      String password = properties.getProperty("server.password");
+      String url = "jdbc:oracle:thin:@" + hostname + ":" + port + ":" + databaseName;
+
+      try {
+         connection = DriverManager.getConnection(url, userName, password);
+         logger.info("数据库已连接。");
+      } catch (SQLException e) {
+         logger.error("数据库连接失败。");
+         connection = null;
+      }
+   }
+
+   public Connection getConnection() {
+      return connection;
+   }
+
+   public void setConnection(Connection connection) {
+      this.connection = connection;
+   }
+
+   public void closeConnection() {
+      try {
+         if (connection != null && !connection.isClosed()) {
+            connection.close();
+            logger.info("数据库已关闭。");
+         }
+      } catch (SQLException e) {
+         logger.error("数据库关闭失败。");
+      }
+   }
+}

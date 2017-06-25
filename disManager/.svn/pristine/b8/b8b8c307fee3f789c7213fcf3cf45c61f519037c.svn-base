@@ -1,0 +1,400 @@
+package com.golead.disManager.ui.dialog;
+
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.golead.disManager.util.Util;
+
+import swing2swt.layout.BorderLayout;
+
+public class LogDialog extends Dialog {
+
+   private static Logger      logger     = Logger.getLogger(ConfigDialog.class);
+   protected SimpleDateFormat sdf        = new SimpleDateFormat("yyyyMMddHHmmss");
+
+   protected Object           result;
+   protected Shell            shell;
+   private Text               txtServerName;
+   private Text               txtServerPort;
+   private Text               txtServerUserName;
+   private Text               txtServerPassword;
+   private Text               txtDbDir;
+   private Combo              cboStatus;
+   private Combo              cboIntervalSecond;
+
+   private String[]           statuses   = { "enable", "disable" };
+   private String[]           intervals  = { "60" };
+   
+   private Properties         properties = new Properties();
+   private Group              grpSystem;
+   
+   private boolean       loaded = false;
+
+   /**
+    * Create the dialog.
+    * 
+    * @param parent
+    * @param style
+    */
+   public LogDialog(Shell parent, int style) {
+      super(parent, style);
+      setText("系统配置");
+   }
+
+   /**
+    * Open the dialog.
+    * 
+    * @return the result
+    */
+   public Object open() {
+      createContents();
+      loadProperties();
+      shell.open();
+      shell.layout();
+      Display display = getParent().getDisplay();
+      while (!shell.isDisposed()) {
+         if (!display.readAndDispatch()) {
+            display.sleep();
+         }
+      }
+      return result;
+   }
+
+   private boolean saveProperties() {
+      boolean res;
+      FileOutputStream oFile = null;
+      String fileName = System.getProperty("user.dir") + "\\config.properties";
+      try {
+         oFile = new FileOutputStream(fileName);
+         BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(oFile, "UTF-8"));
+
+         properties.clear();
+         properties.put("server.severName", txtServerName.getText());
+         properties.put("server.port", txtServerPort.getText());
+         properties.put("server.userName", txtServerUserName.getText());
+         properties.put("server.password", txtServerPassword.getText());
+         properties.put("ftpServer.dasDataDir", txtDbDir.getText());
+
+         properties.put("running.status", statuses[cboStatus.getSelectionIndex()]);
+         properties.put("running.interval.second", intervals[cboIntervalSecond.getSelectionIndex()]);
+         properties.store(bw, "测试");
+         oFile.close();
+         res = true;
+      } catch (Exception e) {
+         Util.alert(shell, "提示", "保存配置文件失败。");
+         res = false;
+      } finally {
+         if (oFile != null) {
+            try {
+               oFile.close();
+               oFile = null;
+            } catch (IOException e) {
+               Util.alert(shell, "提示", "保存配置文件失败。");
+            }
+         }
+      }
+      return res;
+   }
+
+   private void loadProperties() {
+      properties.clear();
+      try {
+         Properties props = new Properties();
+         InputStreamReader inr = new InputStreamReader(new FileInputStream(System.getProperty("user.dir") + "\\config.properties"), "UTF-8");
+         props.load(inr);
+         properties.putAll(props);
+         inr.close();
+         
+         txtServerName.setText(getProperty("server.severName"));
+         txtServerPort.setText(getProperty("server.port"));
+         txtServerUserName.setText(getProperty("server.userName"));
+         txtServerPassword.setText(getProperty("server.password"));
+         txtDbDir.setText(getProperty("ftpServer.dasDataDir"));
+
+         String sta = getProperty("running.status");
+         cboStatus.select(getIndex(statuses, sta));
+
+         sta = getProperty("running.interval.second");
+         cboIntervalSecond.select(getIndex(intervals, sta));
+
+      } catch (IOException e) {
+         Util.alert(shell, "提示", "读取配置文件失败。");
+      }
+   }
+
+   private int getIndex(String[] items, String value) {
+      for (int i = 0; i < items.length; i++) {
+         String item = items[i];
+         if (item.equalsIgnoreCase(value)) return i;
+      }
+      return -1;
+   }
+
+   private String getProperty(String fieldName) throws UnsupportedEncodingException {
+      String p = properties.getProperty(fieldName);
+      if (p == null) return "";
+      else return p;
+   }
+
+   /**
+    * Create contents of the dialog.
+    */
+   private void createContents() {
+      shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE);
+      shell.setImage(SWTResourceManager.getImage(ConfigDialog.class, "/images/config24.png"));
+      shell.setText("系统配置");
+      shell.setSize(600, 300);
+      shell.setLayout(new BorderLayout(0, 0));
+      Rectangle r = Display.getDefault().getBounds();
+      int shellH = shell.getBounds().height;
+      int shellW = shell.getBounds().width;
+      shell.setLocation((r.width - shellW) / 2, (r.height - shellH) / 2);
+
+      Composite composite = new Composite(shell, SWT.NONE);
+      composite.setLayoutData(BorderLayout.SOUTH);
+      composite.setLayout(new FormLayout());
+
+      Button btnApply = new Button(composite, SWT.NONE);
+      btnApply.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            saveProperties();
+         }
+      });
+      FormData fd_btnApply = new FormData();
+      fd_btnApply.right = new FormAttachment(100, -5);
+      fd_btnApply.top = new FormAttachment(0, 5);
+      fd_btnApply.bottom = new FormAttachment(100, -5);
+      fd_btnApply.width = 80;
+      btnApply.setLayoutData(fd_btnApply);
+      btnApply.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnApply.setText("    应用(&A)    ");
+
+      Button btnCancel = new Button(composite, SWT.NONE);
+      FormData fd_btnCancel = new FormData();
+      fd_btnCancel.right = new FormAttachment(btnApply, -10);
+      fd_btnCancel.top = new FormAttachment(0, 5);
+      fd_btnCancel.bottom = new FormAttachment(100, -5);
+      fd_btnCancel.width = 80;
+      btnCancel.setLayoutData(fd_btnCancel);
+      btnCancel.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            shell.close();
+         }
+      });
+      btnCancel.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnCancel.setText("    取消(&C)    ");
+
+      Button btnOk = new Button(composite, SWT.NONE);
+      btnOk.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            if (saveProperties()) shell.close();
+         }
+      });
+      btnOk.setImage(null);
+      FormData fd_btnOk = new FormData();
+      fd_btnOk.top = new FormAttachment(0, 5);
+      fd_btnOk.bottom = new FormAttachment(100, -5);
+      fd_btnOk.right = new FormAttachment(btnCancel, -10);
+      fd_btnOk.width = 80;
+      btnOk.setLayoutData(fd_btnOk);
+      btnOk.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnOk.setText("    确定(&O)    ");
+
+      Composite composite_1 = new Composite(shell, SWT.NONE);
+      composite_1.setLayoutData(BorderLayout.CENTER);
+      composite_1.setLayout(new FormLayout());
+
+      Group grpDatabase = new Group(composite_1, SWT.NONE);
+      grpDatabase.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.BOLD));
+      grpDatabase.setText("  数据库服务器  ");
+      grpDatabase.setLayout(new FormLayout());
+      FormData fd_grpDatabase = new FormData();
+      fd_grpDatabase.left = new FormAttachment(0, 5);
+      fd_grpDatabase.right = new FormAttachment(100, -5);
+      fd_grpDatabase.top = new FormAttachment(0, 5);
+      fd_grpDatabase.height = 70;
+      grpDatabase.setLayoutData(fd_grpDatabase);
+      
+      Group grpDatapath = new Group(composite_1, SWT.NONE);
+      grpDatapath.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.BOLD));
+      grpDatapath.setText("  数据库存放  ");
+      grpDatapath.setLayout(new FormLayout());
+      FormData fd_grpDatapath = new FormData();
+      fd_grpDatapath.left = new FormAttachment(0, 5);
+      fd_grpDatapath.right = new FormAttachment(100, -5);
+      fd_grpDatapath.top = new FormAttachment(grpDatabase, 5);
+      fd_grpDatapath.height = 40;
+      grpDatapath.setLayoutData(fd_grpDatapath);
+      
+      grpSystem = new Group(composite_1, SWT.NONE);
+      grpSystem.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.BOLD));
+      grpSystem.setText("  数据采集参数  ");
+      grpSystem.setLayout(new FormLayout());
+      FormData fd_grpSystem = new FormData();
+      fd_grpSystem.left = new FormAttachment(0, 5);
+      fd_grpSystem.right = new FormAttachment(100, -5);
+      fd_grpSystem.top = new FormAttachment(grpDatapath, 5);
+      fd_grpSystem.height = 40;
+      grpSystem.setLayoutData(fd_grpSystem);
+      
+      Label lblDbServer = new Label(grpDatabase, SWT.NONE);
+      lblDbServer.setText("服务器名称");
+      lblDbServer.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbServer = new FormData();
+      fd_lblDbServer.top = new FormAttachment(0, 10);
+      fd_lblDbServer.right = new FormAttachment(20, -10);
+      fd_lblDbServer.left = new FormAttachment(0, 5);
+      lblDbServer.setLayoutData(fd_lblDbServer);
+
+      Label lblDbPort = new Label(grpDatabase, SWT.NONE);
+      lblDbPort.setText("端口号");
+      lblDbPort.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbPort = new FormData();
+      fd_lblDbPort.top = new FormAttachment(0, 10);
+      fd_lblDbPort.right = new FormAttachment(70, -10);
+      fd_lblDbPort.left = new FormAttachment(50);
+      lblDbPort.setLayoutData(fd_lblDbPort);
+
+      Label lblDbUserName = new Label(grpDatabase, SWT.NONE);
+      lblDbUserName.setText("用户名");
+      lblDbUserName.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbUserName = new FormData();
+      fd_lblDbUserName.top = new FormAttachment(lblDbServer, 10);
+      fd_lblDbUserName.right = new FormAttachment(20, -10);
+      fd_lblDbUserName.left = new FormAttachment(0, 5);
+      lblDbUserName.setLayoutData(fd_lblDbUserName);
+
+      Label lblDbPassword = new Label(grpDatabase, SWT.NONE);
+      lblDbPassword.setText("密码");
+      lblDbPassword.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbPassword = new FormData();
+      fd_lblDbPassword.top = new FormAttachment(lblDbPort, 10);
+      fd_lblDbPassword.right = new FormAttachment(70, -10);
+      fd_lblDbPassword.left = new FormAttachment(50);
+      lblDbPassword.setLayoutData(fd_lblDbPassword);
+
+      txtServerName = new Text(grpDatabase, SWT.BORDER);
+      txtServerName.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbServer = new FormData();
+      fd_txtDbServer.top = new FormAttachment(0, 5);
+      fd_txtDbServer.right = new FormAttachment(50, -5);
+      fd_txtDbServer.left = new FormAttachment(20);
+      txtServerName.setLayoutData(fd_txtDbServer);
+
+      txtServerPort = new Text(grpDatabase, SWT.BORDER);
+      txtServerPort.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbPort = new FormData();
+      fd_txtDbPort.top = new FormAttachment(0, 5);
+      fd_txtDbPort.right = new FormAttachment(100, -5);
+      fd_txtDbPort.left = new FormAttachment(70);
+      txtServerPort.setLayoutData(fd_txtDbPort);
+
+      txtServerUserName = new Text(grpDatabase, SWT.BORDER);
+      txtServerUserName.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbUserName = new FormData();
+      fd_txtDbUserName.top = new FormAttachment(txtServerName, 5);
+      fd_txtDbUserName.right = new FormAttachment(50, -5);
+      fd_txtDbUserName.left = new FormAttachment(20);
+      txtServerUserName.setLayoutData(fd_txtDbUserName);
+
+      txtServerPassword = new Text(grpDatabase, SWT.BORDER);
+      txtServerPassword.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbPassword = new FormData();
+      fd_txtDbPassword.top = new FormAttachment(txtServerPort, 5);
+      fd_txtDbPassword.right = new FormAttachment(100, -5);
+      fd_txtDbPassword.left = new FormAttachment(70);
+      txtServerPassword.setLayoutData(fd_txtDbPassword);
+      
+      Label lblDbDir = new Label(grpDatapath, SWT.NONE);
+      lblDbDir.setText("文件存放位置");
+      lblDbDir.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbDir = new FormData();
+      fd_lblDbDir.top = new FormAttachment(lblDbUserName, 10);
+      fd_lblDbDir.right = new FormAttachment(20, -10);
+      fd_lblDbDir.left = new FormAttachment(0,5);
+      lblDbDir.setLayoutData(fd_lblDbDir);
+      
+      txtDbDir = new Text(grpDatapath, SWT.BORDER);
+      txtDbDir.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbDir = new FormData();
+      fd_txtDbDir.top = new FormAttachment(txtServerUserName, 5);
+      fd_txtDbDir.right = new FormAttachment(100, -5);
+      fd_txtDbDir.left = new FormAttachment(20);
+      txtDbDir.setLayoutData(fd_txtDbDir);
+      
+      Label lblStatus = new Label(grpSystem, SWT.NONE);
+      lblStatus.setText("状态");
+      lblStatus.setAlignment(SWT.RIGHT);
+      FormData fd_lblStatus = new FormData();
+      fd_lblStatus.top = new FormAttachment(lblDbDir, 10);
+      fd_lblStatus.right = new FormAttachment(20, -10);
+      fd_lblStatus.left = new FormAttachment(0, 5);
+      lblStatus.setLayoutData(fd_lblStatus);
+      
+      cboStatus = new Combo(grpSystem, SWT.DROP_DOWN | SWT.READ_ONLY);
+      FormData fd_cboStatus = new FormData();
+      fd_cboStatus.right = new FormAttachment(50, -5);
+      fd_cboStatus.left = new FormAttachment(20);
+      fd_cboStatus.top = new FormAttachment(txtDbDir, 5);
+      cboStatus.setLayoutData(fd_cboStatus);
+      cboStatus.add("启动");
+      cboStatus.add("暂停");
+      
+      Label lblIntervalSecond = new Label(grpSystem, SWT.NONE);
+      lblIntervalSecond.setText("时间");
+      lblIntervalSecond.setAlignment(SWT.RIGHT);
+      FormData fd_lblIntervalSecond = new FormData();
+      fd_lblIntervalSecond.top = new FormAttachment(0, 10);
+      fd_lblIntervalSecond.right = new FormAttachment(70, -5);
+      fd_lblIntervalSecond.left = new FormAttachment(cboStatus,20);
+      lblIntervalSecond.setLayoutData(fd_lblIntervalSecond);
+      
+      cboIntervalSecond = new Combo(grpSystem, SWT.DROP_DOWN | SWT.READ_ONLY);
+      FormData fd_cboIntervalSecond = new FormData();
+      fd_cboIntervalSecond.right = new FormAttachment(100, -5);
+      fd_cboIntervalSecond.left = new FormAttachment(70);
+      fd_cboIntervalSecond.top = new FormAttachment(0, 5);
+      cboIntervalSecond.setLayoutData(fd_cboIntervalSecond);
+      cboIntervalSecond.add("60秒");
+      
+      TabFolder tabFolder = new TabFolder(shell, SWT.BORDER);
+      tabFolder.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            if (!loaded) return;
+            int idx = ((TabFolder) e.getSource()).getSelectionIndex();
+//            loadComposite(idx);
+         }
+      });
+   }
+}

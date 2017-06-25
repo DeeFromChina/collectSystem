@@ -1,0 +1,170 @@
+package com.golead.dasService.service;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.Constant;
+import com.golead.dasService.communication.CommunicationServerHandler;
+import com.golead.dasService.filter.NameFilter;
+
+public class MessageManager {
+   
+   private static Logger         logger   = Logger.getLogger(MessageManager.class);
+   
+   private Thread             dataCollectProcess;
+   
+   private Thread             dataTransferProcess;
+   
+   private Thread             logTransferProcess;
+   
+   public void commandMessage(Object msg){
+      try {
+         String[] list = msg.toString().split(" ");
+         Date startDate = null;
+         Date endDate = null;
+         if(list[1].startsWith("dateStart")){
+            startDate = new SimpleDateFormat("yyyyMMddHHmmss").parse(list[1].replace("dateStart:", ""));
+            endDate = new SimpleDateFormat("yyyyMMddHHmmss").parse(list[2].replace("dateEnd:", ""));
+         }
+         Properties prop = new Properties();
+         InputStream in = new FileInputStream(System.getProperty("user.dir") + File.separator + "config.properties");
+         prop.load(in);
+         in.close();
+         if(msg.toString().startsWith("command:collect")){
+            if (dataCollectProcess != null && dataCollectProcess.isAlive()) {
+               logger.info("数据采集进行中，不能启动新的数据采集进程。......");
+            }
+            Map<String, Object> initParameters = new HashMap<String, Object>();
+            initParameters.put("properties", prop);
+            initParameters.put("startDate", startDate);
+            initParameters.put("endDate", endDate);
+            dataCollectProcess = new DataCollectProcess(initParameters);
+            dataCollectProcess.start();
+            Thread.sleep(2000);
+         }
+         if(msg.toString().startsWith("command:trans")){
+            File[] files = new File(System.getProperty("user.dir")+File.separator+"dat"+File.separator).listFiles(new NameFilter(".cfg"));
+            File[] filelists = new File(System.getProperty("user.dir")+File.separator+"dat"+File.separator).listFiles();
+            for(File cfg : files){
+               Properties cfgprop = new Properties();
+               InputStream inSR = new FileInputStream(cfg.getPath());
+               cfgprop.load(inSR);
+               inSR.close();
+               String cfgTimeStart = cfgprop.getProperty("catalog.startDate").toString();
+               String cfgTimeEnd = cfgprop.getProperty("catalog.endDate").toString();
+               SimpleDateFormat sdt = new SimpleDateFormat("yyyyMMddHHmmss");
+               if(Long.valueOf(sdt.format(startDate))<=Long.valueOf(cfgTimeStart) && Long.valueOf(cfgTimeEnd)<=Long.valueOf(sdt.format(endDate))){
+                  for(File file : filelists){
+                     if(file.getName().startsWith(cfg.getName().replace(".cfg", ""))){
+                        deleteFile(file);
+                     }
+                  }
+               }
+            }
+            
+            if (dataCollectProcess != null && dataCollectProcess.isAlive()) {
+               logger.info("数据采集进行中，不能启动新的数据采集进程。......");
+            }
+            Map<String, Object> initParameters = new HashMap<String, Object>();
+            initParameters.put("properties", prop);
+            initParameters.put("startDate", startDate);
+            initParameters.put("endDate", endDate);
+            dataCollectProcess = new DataCollectProcess(initParameters);
+            dataCollectProcess.start();
+            Thread.sleep(2000);
+            
+            if (dataTransferProcess != null && dataTransferProcess.isAlive()) {
+               logger.info("数据传送进行中，不能启动新的数据传送进程。......");
+            }
+            
+            Properties prop2 = new Properties();
+            File[] fileList = new File(System.getProperty("user.dir") + File.separator + "dat"+File.separator).listFiles(new NameFilter(".cfg"));
+            String fileName = "";
+            for(File file : fileList){
+               InputStream inS = new FileInputStream(file.getPath());
+               prop2.load(inS);
+               inS.close();
+               if(prop2.get("catalog.startDate").equals(startDate) && prop2.get("catalog.endDate").equals(endDate)){
+                  fileName = file.getName();
+                  break;
+               }
+            }
+            File[] lists = new File(System.getProperty("user.dir") + File.separator + "dat"+File.separator).listFiles(new NameFilter(fileName));
+            Map<String, Object> initParameters2 = new HashMap<String, Object>();
+            initParameters2.put("properties", prop);
+            initParameters2.put("fileList", lists);
+            initParameters2.put("catalogStatus", Constant.STATUS_ZIP);
+            dataTransferProcess = new DataTransferProcess(initParameters);
+            dataTransferProcess.start();
+            Thread.sleep(2000);
+         }
+         if(msg.toString().startsWith("command:Logtrans")){
+            if (logTransferProcess != null && logTransferProcess.isAlive()) {
+               logger.info("日志传输进行中，不能启动新的日志传输进程。......");
+            }
+            String Day = list[1];
+            String stationID = list[3].replace("CompanyNo:", "");
+            String company = list[2].replace("stationID:", "");
+            if(prop.get("stationID").toString().equals(stationID) && prop.get("companyNo").toString().equals(company)){
+               Map<String, Object> initParameters = new HashMap<String, Object>();
+               initParameters.put("properties", prop);
+               initParameters.put("Day", Day.replace("Day:", ""));
+               initParameters.put("stationID", prop.get("stationID").toString());
+               logTransferProcess = new LogTransferProcess(initParameters);
+               logTransferProcess.start();
+               Thread.sleep(2000);
+            }else{
+               logger.info("没有找到该加油站！");
+            }
+         }
+      }
+      catch (Exception e) {
+         // TODO: handle exception
+      }
+   }
+   
+   private void deleteFile(File file){
+      if(file.isFile()){
+         file.delete();
+      }else{
+         deleteDirectory(file.getPath());
+      }
+}
+
+private void deleteDirectory(String path) {  
+   try{
+      //如果path不以文件分隔符结尾，自动添加文件分隔符  
+      if (!path.endsWith(File.separator)) {  
+         path = path + File.separator;  
+      }  
+      File dirFile = new File(path);  
+      //如果dir对应的文件不存在，或者不是一个目录，则退出  
+      if (!dirFile.exists() || !dirFile.isDirectory()) {  
+          throw new Exception("error");
+      }  
+      //删除文件夹下的所有文件(包括子目录)  
+      File[] files = dirFile.listFiles();  
+      for (int i = 0; i < files.length; i++) {  
+          //删除子文件  
+          if (files[i].isFile()) {  
+              files[i].delete();  
+          } //删除子目录  
+          else {  
+              deleteDirectory(files[i].getAbsolutePath());  
+          }  
+      }  
+      //删除当前目录  
+      dirFile.delete(); 
+  }catch(Exception e){
+     e.printStackTrace();
+  }
+}
+}

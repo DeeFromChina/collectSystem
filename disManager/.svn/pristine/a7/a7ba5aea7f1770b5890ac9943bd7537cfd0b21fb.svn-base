@@ -1,0 +1,12 @@
+#\u6d4b\u8bd5
+#Tue Mar 29 17:28:39 CST 2016
+
+running.status=enable
+running.interval.second=60
+
+server.severName=192.168.0.200
+server.port=1521
+server.userName=datacenter
+server.password=datacenter
+
+ftpServer.dasDataDir=C:\\FTP\u4e0a\u4f20\\dasData\\102238200004\\1022382000040002

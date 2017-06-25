@@ -1,0 +1,139 @@
+package com.golead.disManager.ui.dialog;
+
+import org.apache.log4j.Logger;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.golead.disManager.ui.composite.StationComposite;
+import com.golead.disManager.util.Util;
+
+import swing2swt.layout.BorderLayout;
+
+public class StationDialog extends Dialog{
+   private static Logger      logger     = Logger.getLogger(StationDialog.class);
+   protected Shell            shell;
+   private Text               txtStatonNo;
+   private Text               txtServerName;
+   private StationComposite   scComposite;
+   public StationDialog(Shell parent, int style) {
+      super(parent, style);
+      setText("加油站配置");
+   }
+   
+   public void open() {
+      createContents();
+      shell.open();
+      shell.layout();
+      Display display = getParent().getDisplay();
+      while (!shell.isDisposed()) {
+         if (!display.readAndDispatch()) {
+            display.sleep();
+         }
+      }
+   }
+
+   private void createContents() {
+      shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE);
+      shell.setImage(SWTResourceManager.getImage(ConfigDialog.class, "/images/config24.png"));
+      shell.setText("加油站查询");
+      shell.setSize(500, 120);
+      shell.setLayout(new BorderLayout(0, 0));
+      Rectangle r = Display.getDefault().getBounds();
+      int shellH = shell.getBounds().height;
+      int shellW = shell.getBounds().width;
+      shell.setLocation((r.width - shellW) / 2, (r.height - shellH) / 2);
+
+      Composite composite = new Composite(shell, SWT.NONE);
+      composite.setLayoutData(BorderLayout.SOUTH);
+      composite.setLayout(new FormLayout());
+
+      Button btnCancel = new Button(composite, SWT.NONE);
+      FormData fd_btnCancel = new FormData();
+      fd_btnCancel.right = new FormAttachment(100, -10);
+      fd_btnCancel.top = new FormAttachment(0, 5);
+      fd_btnCancel.bottom = new FormAttachment(100, -5);
+      fd_btnCancel.width = 80;
+      btnCancel.setLayoutData(fd_btnCancel);
+      btnCancel.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            shell.close();
+         }
+      });
+      btnCancel.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnCancel.setText("    取消(&C)    ");
+
+      Button btnOk = new Button(composite, SWT.NONE);
+      btnOk.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+//            StationDialog sd.getParent() 
+            if(txtServerName.getText()==null || txtServerName.getText().isEmpty()){
+               Util.alert(shell, "错误", "加油站名称不能为空");
+               shell.close();
+            }
+            scComposite.SearchForStation(txtStatonNo.getText(), txtServerName.getText());
+            shell.close();
+         }
+      });
+      btnOk.setImage(null);
+      FormData fd_btnOk = new FormData();
+      fd_btnOk.top = new FormAttachment(0, 5);
+      fd_btnOk.bottom = new FormAttachment(100, -5);
+      fd_btnOk.right = new FormAttachment(btnCancel, -10);
+      fd_btnOk.width = 80;
+      btnOk.setLayoutData(fd_btnOk);
+      btnOk.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnOk.setText("    确定(&O)    ");
+
+      
+      Composite composite_1 = new Composite(shell, SWT.NONE);
+      composite_1.setLayoutData(BorderLayout.CENTER);
+      composite_1.setLayout(new FormLayout());
+
+      Label lblStatonNo = new Label(composite_1, SWT.NONE);
+      lblStatonNo.setText("加油站编号");
+      lblStatonNo.setAlignment(SWT.RIGHT);
+      FormData fd_lblStatonNo = new FormData();
+      fd_lblStatonNo.top = new FormAttachment(20, 10);
+      fd_lblStatonNo.left = new FormAttachment(10, 5);
+      lblStatonNo.setLayoutData(fd_lblStatonNo);
+
+      txtStatonNo = new Text(composite_1, SWT.BORDER);
+      txtStatonNo.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtStatonNo = new FormData();
+      fd_txtStatonNo.top = new FormAttachment(20, 5);
+      fd_txtStatonNo.left = new FormAttachment(lblStatonNo,5);
+      fd_txtStatonNo.width = 120;
+      txtStatonNo.setLayoutData(fd_txtStatonNo);
+      
+      Label lblDbServer = new Label(composite_1, SWT.NONE);
+      lblDbServer.setText("加油站名称");
+      lblDbServer.setAlignment(SWT.RIGHT);
+      FormData fd_lblDbServer = new FormData();
+      fd_lblDbServer.top = new FormAttachment(20, 10);
+      fd_lblDbServer.left = new FormAttachment(txtStatonNo, 25);
+      lblDbServer.setLayoutData(fd_lblDbServer);
+      
+      txtServerName = new Text(composite_1, SWT.BORDER);
+      txtServerName.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDbServer = new FormData();
+      fd_txtDbServer.top = new FormAttachment(20, 5);
+      fd_txtDbServer.left = new FormAttachment(lblDbServer,5);
+      fd_txtDbServer.width = 120;
+      txtServerName.setLayoutData(fd_txtDbServer);
+   }
+}

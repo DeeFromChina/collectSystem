@@ -1,0 +1,6 @@
+package com.golead.dasService.communication;
+
+public class CommunicationCallback {
+   public void command(String source, String message) {
+   }
+}

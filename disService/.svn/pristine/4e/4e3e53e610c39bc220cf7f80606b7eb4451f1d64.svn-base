@@ -1,0 +1,358 @@
+package com.golead.disService.service;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.common.util.FileUtil;
+import com.golead.disService.callback.DataLoadProcessCallback;
+import com.golead.disService.callback.ExecuteFileCallback;
+import com.golead.disService.common.Constant;
+import com.golead.disService.common.utils.DataName;
+import com.golead.disService.common.utils.JsonUtils;
+import com.golead.disService.common.utils.Search;
+import com.golead.disService.common.utils.ZipUtil;
+import com.golead.disService.dao.DataSource;
+import com.golead.disService.dao.ExecuteFile;
+import com.golead.disService.dao.ExecuteLogFile;
+
+public class DataLogProcess extends Thread {
+
+   private static Logger logger = Logger.getLogger(DataLogProcess.class);
+
+   private Properties    properties;
+
+   private Connection    connection;
+
+   private String        company;
+
+   private String        stationId;
+
+   private String        logFileName;
+   
+   public DataLogProcess(Map<String, Object> initParameters) {
+      this.properties = (Properties) initParameters.get("properties");
+   }
+
+   public void run() {
+      logger.info("日志导入开始。");
+      try {
+         connection = openConnection();
+         if (connection != null) {
+            List<File> fileList = new ArrayList<File>();
+            getData(fileList);
+            if (fileList != null && fileList.size() > 0) {
+                  loadData(fileList);
+            }
+            closeConnection(connection);
+         }
+         else {
+            logger.info("数据加载过程终止。");
+         }
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+         logger.info("日志收集失败。");
+      }
+      logger.info("日志导入结束。");
+   }
+
+   private void getData(List<File> list) {
+      logger.info("压缩文件启动。");
+      List<String> zipList = null;
+      try {
+         String dasLogDataDir = properties.getProperty("ftpServer.dasLogDataDir");
+         if (dasLogDataDir == null) { return; }
+         File file = new File(dasLogDataDir);
+         if (!file.exists()) { return; }
+         //zip路径
+         zipList = Search.zipFilePath(dasLogDataDir);
+         if (zipList == null || zipList.size() == 0) { return; }
+         for (String path : zipList) {
+            File cfg = null;
+            try {
+               File zipFile = new File(path);
+               cfg = new File(path.replace(".zip", ".cfg"));
+               String[] filePaths = cfg.getPath().split("\\\\");
+               String station = filePaths[filePaths.length - 2];
+               String company = filePaths[filePaths.length - 3];
+               this.company = company;
+               this.stationId = station;
+               if(!cfg.exists()){
+                  logger.error(String.format("加油站【%s】文件【%s】不完整。", stationId, zipFile.getName()));
+                  continue;
+               }
+               
+               Properties cfgFile = new Properties();
+               InputStream in = new FileInputStream(path.replace(".zip", ".cfg"));
+               cfgFile.load(in);
+               in.close();
+               String status = cfgFile.get("catalog.status") == null ? "" : cfgFile.get("catalog.status").toString();
+               if(Constant.STATUS_FINISH.equals(status)){
+                  cfg.delete();
+                  zipFile.delete();
+                  continue;
+               }
+               if (!FileUtil.md5File(zipFile).equals(cfgFile.get("catalog.md5"))) {
+                  logger.error(String.format("加油站【%s】文件【%s】不完整。", stationId, zipFile.getName()));
+                  cfgFile.setProperty("catalog.status", Constant.STATUS_FAIL);
+                  cfgFile.setProperty("catalog.fail", "压缩文件不完整。");
+                  FileUtil.saveProperties(cfg, cfgFile);
+                  continue;
+               }
+               
+               //txt文件
+               File[] ziptxtFile = ZipUtil.unzip(path, ZipUtil.PASSWD);
+               if (zipFile == null && ziptxtFile.length == 0) {
+                  continue;
+               }
+               for (int i = 0; i < ziptxtFile.length; i++) {
+                  list.add(ziptxtFile[i]);
+               }
+               cfgFile.setProperty("catalog.status", Constant.STATUS_FINISH);
+               FileUtil.saveProperties(cfg, cfgFile);
+               logger.info("listadd"+path);
+            }
+            catch (Exception e) {
+               e.printStackTrace();
+            }
+         }
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+      }finally{
+         if(zipList != null && zipList.size() > 0){
+            //删除zip文件
+            for(String path : zipList){
+               File zipFile = new File(path);
+               File cfgFile = new File(path.replace(".zip", ".cfg"));
+               if(zipFile.exists() && zipFile.isFile()){
+                  zipFile.delete();
+               }
+               if(cfgFile.exists() && cfgFile.isFile()){
+                  cfgFile.delete();
+               }
+            }
+         }
+      }
+
+      logger.info("压缩文件结束。");
+   }
+
+   private void readTxT(List<Map<String, Object>> list, File txtFile) {
+      RandomAccessFile randomFile = null;
+      try {
+         String[] filePaths = txtFile.getPath().split("\\\\");
+         String station = filePaths[filePaths.length - 2];
+         String company = filePaths[filePaths.length - 3];
+         this.company = company;
+         this.stationId = station;
+         this.logFileName = txtFile.getName();
+         randomFile = new RandomAccessFile(txtFile, "r");
+         randomFile.seek(0);
+         String tmp = null;
+         //数据
+         while ((tmp = randomFile.readLine()) != null) {
+            analysisLog(tmp, list, station, company);
+         }
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+      }finally{
+         if(randomFile != null){
+            try {
+               randomFile.close();
+               //删除txt文件
+               txtFile.delete();
+            }
+            catch (IOException e) {
+               e.printStackTrace();
+            }
+         }
+      }
+   }
+
+   private void analysisLog(String lineData, List<Map<String, Object>> list, String station, String company) throws Exception {
+      try {
+         Map<String, Object> map = JsonUtils.Json2Map(lineData);
+         map.put("COMPANY", company);
+         map.put("STATION", station);
+         list.add(map);
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+      }
+   }
+
+   private Connection openConnection() {
+      try {
+         Connection conn = DataSource.getConnection();
+         logger.info("数据库已连接。");
+         return conn;
+      }
+      catch (SQLException e) {
+         logger.error("数据库连接失败。");
+         return null;
+      }
+   }
+
+   private void loadData(List<File> targetFileList) {
+      logger.info("开始插入数据。");
+
+      for (File file : targetFileList) {
+         executeInsertSql(file);
+      }
+
+      logger.info("完成数据插入。");
+   }
+
+   private void executeInsertSql(File zipFile) {
+      List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+      readTxT(list, zipFile);
+      if (list == null || list.size() == 0) { return; }
+
+      List<ExecuteLogFile> exceutes = new ArrayList<ExecuteLogFile>();
+
+      String[] tables = { "DIT_READING", "DIT_TANK_READING" };
+      Map<String, Integer[]> typeMap = new HashMap<String, Integer[]>();
+      StringBuffer colums1 = new StringBuffer();
+      StringBuffer colums2 = new StringBuffer();
+      colums1.append(DataName.DataFirst1 + ",");
+      colums1.append(DataName.DataFirst2 + ",");
+      colums1.append(DataName.DataFirst3 + ",");
+      colums1.append(DataName.DataFirst4 + ",");
+      colums1.append(DataName.DataFirst5 + ",");
+      colums1.append(DataName.DataFirst6 + ",");
+      colums1.append(DataName.DataFirst7 + ",");
+      colums1.append(DataName.DataFirst8 + ",");
+      colums1.append(DataName.DataFirst9 + ",");
+      colums1.append(DataName.MsgID + ",");
+      colums1.append(DataName.SOURCE + ",");
+      colums1.append(DataName.LOG_TIME + ",");
+      colums1.append(DataName.COMPANY + ",");
+      colums1.append(DataName.STATION);
+      colums2.append(DataName.DataTwo1 + ",");
+      colums2.append(DataName.DataTwo2 + ",");
+      colums2.append(DataName.DataTwo3 + ",");
+      colums2.append(DataName.DataTwo4 + ",");
+      colums2.append(DataName.DataTwo5 + ",");
+      colums2.append(DataName.DataTwo6 + ",");
+      colums2.append(DataName.DataTwo7 + ",");
+      colums2.append(DataName.DataTwo8 + ",");
+      colums2.append(DataName.DataTwo9 + ",");
+      colums2.append(DataName.DataTwo10 + ",");
+      colums2.append(DataName.MsgID + ",");
+      colums2.append(DataName.SOURCE + ",");
+      colums2.append(DataName.LOG_TIME + ",");
+      colums2.append(DataName.COMPANY + ",");
+      colums2.append(DataName.STATION);
+      if(colums1.length() == 0 || colums2.length() == 0){
+         return;
+      }
+      Map<String, String> columMap = new HashMap<String, String>();
+      columMap.put("DIT_READING", colums1.toString());
+      columMap.put("DIT_TANK_READING", colums2.toString());
+      for (String table : tables) {
+         String colums = null;
+         if("DIT_READING".equals(table)){
+            colums = colums1.toString();
+         }else if("DIT_TANK_READING".equals(table)){
+            colums = colums2.toString();
+         }
+         if(colums == null || colums.length() == 0){
+            return;
+         }
+         ResultSet rs = checkTable(table, colums); // 检查要导入的数据表是否存在。
+         if (rs == null) {
+            logger.error(String.format("找不到数据表：%s", table));
+            continue;
+         }
+
+         ResultSetMetaData rsmd;
+         Integer[] types = null;
+         try {
+            rsmd = rs.getMetaData(); // 获取数据表的数据结构。
+            types = new Integer[rsmd.getColumnCount()];
+            for (int k = 0; k < rsmd.getColumnCount(); k++) {
+               types[k] = rsmd.getColumnType(k + 1);
+            }
+            typeMap.put(table, types);
+         }
+         catch (SQLException e1) {
+            logger.error(String.format("数据表【%s】错误。", table));
+            continue;
+         }
+      }
+
+      Map<String, Object> params = new HashMap<String, Object>();
+      params.put("COMPANY", company);
+      params.put("STATION", stationId);
+      params.put("logFileName", logFileName);
+      params.put("type", typeMap);
+      params.put("columsMap", columMap);
+      ExecuteLogFile executeLogFile = new ExecuteLogFile(list, tables, params);
+      exceutes.add(executeLogFile);
+      executeLogFile.start();
+
+      boolean wait = true;
+      while (wait) {
+         try {
+            int isBusy = 0;
+            for (ExecuteLogFile es : exceutes) {
+               if (es.isAlive()) {
+                  isBusy++;
+                  // logger.info(es.getTableName());
+               }
+            }
+            if (isBusy == 0) wait = false;
+            Thread.sleep(200);
+         }
+         catch (InterruptedException e) {
+            logger.error("线程错误。");
+         }
+      }
+   }
+
+   private void closeConnection(Connection connection) {
+      try {
+         if (connection != null && !connection.isClosed()) {
+            connection.close();
+            logger.info("数据库已关闭。");
+         }
+      }
+      catch (SQLException e) {
+         logger.error("数据库关闭失败。");
+      }
+   }
+
+   private ResultSet checkTable(String table, String colums) {
+      colums = colums.replace(DataName.MsgID, "MSG_ID");
+      colums = colums.replace(DataName.SOURCE, "SOURCE");
+      colums = colums.replace(DataName.LOG_TIME, "LOG_TIME");
+      String sql = "select " + colums +" from  " + table + " where 1=0";
+      logger.debug(sql);
+      try {
+         Statement ps = connection.createStatement();
+         return ps.executeQuery(sql);
+      }
+      catch (SQLException e) {
+         logger.error(e);
+         return null;
+      }
+   }
+}

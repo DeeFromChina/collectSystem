@@ -1,0 +1,33 @@
+package com.golead.dasService.dao;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.utils.DateUtil;
+import com.golead.dasService.service.CollectInterface;
+
+public class CollectTrade extends BaseDataCollect implements CollectInterface {
+
+   private static Logger logger = Logger.getLogger(CollectTrade.class);
+
+   public CollectTrade() {
+      this.fileName = "trade";
+      this.primaryKey = "TRADEID";
+      this.dataName = "交易信息表";
+   }
+   
+   @Override
+   public String prepareSql(Map<String, Object> parameters) {
+	   return new StringBuffer("select * from trade").toString();
+   }
+
+}

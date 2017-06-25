@@ -1,0 +1,612 @@
+package com.golead.dasService;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.Command;
+import com.golead.dasService.common.Constant;
+import com.golead.dasService.common.ProcessCallback;
+import com.golead.dasService.common.utils.DateUtil;
+import com.golead.dasService.common.utils.FileUtil;
+import com.golead.dasService.communication.CommunicationCallback;
+import com.golead.dasService.communication.CommunicationService;
+import com.golead.dasService.filter.NameFilter;
+import com.golead.dasService.service.CollectionLogProcess;
+import com.golead.dasService.service.DataCleanProcess;
+import com.golead.dasService.service.DataCollectProcess;
+import com.golead.dasService.service.DataTransferProcess;
+import com.golead.dasService.service.LogCleanProcess;
+import com.golead.dasService.service.LogDataTransferProcess;
+
+public class DasService {
+
+   private static Logger      logger         = Logger.getLogger(DasService.class);
+
+   private int                logTimes       = 0;
+
+   private boolean            status         = true;
+
+   private boolean            logstatus      = true;
+
+   protected SimpleDateFormat sdf            = new SimpleDateFormat("yyyyMMddHHmmss");
+
+   private Thread             dataCollectProcess;
+
+   private Thread             dataTransferProcess;
+
+   private Thread             dataCleanProcess;
+
+   private Thread             logCleanProcess;
+
+   private Thread             communicationService;
+
+   private Thread             collectionLogProcess;
+   
+   private Thread             logDataTransferProcess;
+
+   private Properties         properties     = new Properties();
+
+   private Properties         logproperties  = new Properties();
+
+   private long               lastModifyTime = 0;
+
+   private long               lastModifyTime1 = 0;
+
+   private long               rlogsize;
+
+   private long               wlogsize;
+   
+   private String             startTime;
+   
+   private String             endTime;
+
+   public static void main(String[] args) {
+      logger.info("DasService服务启动......");
+      new DasService().run();
+      logger.info("DasService服务关闭。");
+   }
+
+   private void run() {
+      boolean result = getProperties();// 读取系统配置文件。如果失败，不能启动数据采集服务。
+      if (!result) {
+         logger.info("数据采集服务未启动。");
+         return;
+      }
+      startCommServer();
+      rlogsize = 0;
+      wlogsize = 0;
+      while (true) {
+         try {
+            boolean res = getProperties();// 读取系统配置文件。如果失败，不能启动数据采集服务。
+            boolean ret = getLogProperties();// 读取系统配置文件。如果失败，不能启动数据采集服务。
+            boolean colect = goCollect();
+            if (res) {
+//               logger.info("进入goService。");
+               goService();
+            }
+            else {
+               logger.info("数据采集服务未启动。");
+            }
+            //收集前一天日志
+            if (ret) {
+               goLogService();
+            }
+            else {
+               logger.info("日志数据采集服务未启动。");
+            }
+            if(colect){
+               goLogSelfService();
+               startTime = null;
+               endTime =  null;
+            }
+            // 每隔一秒钟检测一次。
+            Thread.sleep(1000);
+         }
+         catch (InterruptedException e) {
+            e.printStackTrace();
+         }
+      }
+   }
+   
+   private boolean goCollect() throws InterruptedException {
+      if(startTime != null && endTime != null){
+         return true;
+      }else{
+         return false;
+      }
+   }
+   
+   private void goLogSelfService() throws InterruptedException {
+      SimpleDateFormat sdt = new SimpleDateFormat("yyyyMMdd");
+      String fileName = "";
+      try {
+         int i = 0;
+         if(startTime.equals(endTime)){
+            fileName = startTime;
+            i = goLog(fileName);
+         }else{
+            Calendar st = Calendar.getInstance();
+            Calendar et = Calendar.getInstance();
+            st.setTime(sdt.parse(startTime));
+            et.setTime(sdt.parse(endTime));
+            if(st.getTimeInMillis() > et.getTimeInMillis()){
+               logger.info("收集日志时间段出错。");
+               return;
+            }
+            int times = Integer.parseInt(String.valueOf((et.getTimeInMillis() - st.getTimeInMillis())/(1000*3600*24)));
+            times+=1;
+            List<String> fileNames = new ArrayList<String>();
+            for(int t = 0; t < times; t++){
+               Date sDate = st.getTime();
+               Date eDate = et.getTime();
+               fileNames.add(sdt.format(sDate));
+               if(sDate.equals(eDate)){
+                  break;
+               }
+               st.add(Calendar.DATE, 1);
+            }
+            for(String name : fileNames){
+            	i = goLog(name);
+            }
+            OutputStream ow = new FileOutputStream(
+			System.getProperty("user.dir") + File.separator
+							+ "logconfig.properties");
+			logproperties.setProperty("collect.status", "stop");
+			logproperties.setProperty("fileNameList", "");
+			logproperties.store(ow, null);
+         }
+         if(i > 0){
+            startLogTransfer();
+         }
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+      }
+   }
+   
+   private void goLogService() throws InterruptedException {
+      Calendar cal = Calendar.getInstance();
+      cal.setTime(new Date());
+      cal.add(Calendar.DATE, -1);
+      Integer zeroTime = Integer.valueOf(sdf.format(new Date()).substring(8));
+      Integer dayTime = Integer.valueOf(sdf.format(new Date()).substring(0,8));
+      int i = 0;
+      if(zeroTime < 1){
+         String fileName = sdf.format(cal.getTime()).substring(0,8);
+         i = goLog(fileName);
+      }
+      String fileName = String.valueOf(dayTime);
+      i = goLog(fileName);
+      if(i > 0){
+         startLogTransfer();
+      }
+   }
+
+   private void startCommServer() {
+      Integer port = 15432;
+      String p = properties.getProperty("comm.port");
+      if (p != null && !"".equals(p.trim())) {
+         try {
+            port = new Integer(p.trim());
+         }
+         catch (Exception e) {
+            logger.error("数据通讯端口设置错误：commServer=" + p + "，系统采用默认端口。");
+            port = 15432;
+         }
+      }
+      else {
+         logger.info("未设置数据通讯端口，系统采用默认端口。");
+         port = 15432;
+      }
+
+      logger.info("启动数据通讯，端口号：" + port + " ......");
+      communicationService = new CommunicationService(port, new CommunicationCallback() {
+         @Override
+         public void command(String source, Command command) {
+            logger.info("command:" + command.getCommandString());
+            dealCommand(source, command);
+         }
+      });
+      communicationService.start();
+   }
+
+   private void dealCommand(String source, Command command) {
+      if (command.getName().equalsIgnoreCase(Command.COMMAND_COLLECT) || command.getName().equalsIgnoreCase(Command.COMMAND_COLLECTANDSEND)) {
+         String dateStart = command.getParameters().get("dateStart");
+         String dateEnd = command.getParameters().get("dateEnd");
+         try {
+            Date startDate = sdf.parse(dateStart + "000000");
+            Date endDate = sdf.parse(dateEnd + "235959");
+            startCollection(startDate, endDate, command.getName());
+         }
+         catch (ParseException e) {
+            logger.error("日期格式错误。");
+            return;
+         }
+         catch (InterruptedException e) {
+            logger.error("数据采集错误。");
+            return;
+         }
+      }
+      else if (command.getName().equalsIgnoreCase(Command.COMMAND_SEND)) {
+         File fileDir = new File(Constant.DIR_DAT);
+         File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+         try {
+            startTransfer(list, Constant.STATUS_ZIP);
+         }
+         catch (InterruptedException e) {
+            logger.error("数据传送错误。");
+         }
+      }
+   }
+
+   public boolean getLogProperties() {
+      File file = new File("logconfig.properties");
+      long time = file.lastModified();
+      if (lastModifyTime1 >= time) return true;
+      else lastModifyTime1 = time;
+
+      try {
+         Properties prop = new Properties();
+         InputStream in = new FileInputStream(System.getProperty("user.dir") + File.separator + "logconfig.properties");
+         BufferedReader bf = new BufferedReader(new InputStreamReader(in));
+         prop.load(bf);
+         logproperties.clear();
+         logproperties.putAll(prop);
+         String startT = logproperties.getProperty("collect.startTime");
+         String endT = logproperties.getProperty("collect.endTime");
+         if(startT != null && !"".equals(startT.trim()) && endT != null && !"".equals(endT.trim()) ){
+            startTime = startT;
+            endTime = endT;
+         }
+         if(logproperties.getProperty("collect.status") == null || "stop".equalsIgnoreCase(logproperties.getProperty("collect.status"))){
+            startTime = null;
+            endTime = null;
+         }
+         String sta = logproperties.getProperty("running.status");
+         if (sta != null && "enable".equalsIgnoreCase(sta)) logstatus = true;
+         else logstatus = false;
+         return true;
+      }
+      catch (IOException e) {
+         logger.error("读取配置文件logconfig.properties错误。");
+         return false;
+      }
+   }
+
+   public boolean getProperties() {
+      File file = new File("config.properties");
+      long time = file.lastModified();
+      if (lastModifyTime >= time) return true;
+      else lastModifyTime = time;
+
+      try {
+         Properties prop = new Properties();
+         InputStream in = new FileInputStream(System.getProperty("user.dir") + File.separator + "config.properties");
+         BufferedReader bf = new BufferedReader(new InputStreamReader(in));
+         prop.load(bf);
+         properties.clear();
+         properties.putAll(prop);
+         String sta = properties.getProperty("running.status");
+         if (sta != null && "enable".equalsIgnoreCase(sta)) status = true;
+         else status = false;
+         return true;
+      }
+      catch (IOException e) {
+         logger.error("读取配置文件config.properties错误。");
+         return false;
+      }
+   }
+
+   private int goLog(String fileName) throws InterruptedException {
+      if (!logstatus) return 0;
+      //收集日志文件间隔时间（分）
+      String collectTime = logproperties.getProperty("running.logCollectTime");
+      if (collectTime == null) {
+         logger.info("未设置日志自动采集时间。");
+         return 0;
+      }
+      String logPath = logproperties.getProperty("running.logPath");
+      if (logPath == null) {
+         logger.info("未设置日志路径。");
+         return 0;
+      }
+      logproperties.put("fileName", fileName);
+//      int intervalTime = Integer.valueOf(collectTime);
+//      intervalTime = intervalTime*60;
+//      if (logTimes < intervalTime) {
+//         logTimes++;
+//         return 0;
+//      }
+//      else {
+//         logTimes = 0;
+//      }
+      //开始收集日志文件
+      startCollectionLog(logPath);
+      return 1;
+   }
+
+   private void goService() throws InterruptedException {
+      if (!status) return;
+      String collectTime = properties.getProperty("running.dataCollectTime");
+      if (collectTime == null) {
+         logger.info("未设置数据自动采集时间。");
+         return;
+      }
+      String[] ct = collectTime.trim().split(":");
+      if (ct[0].trim().equals("")) {
+         logger.info("未设置数据自动采集时间。");
+         return;
+      }
+      Integer h1 = new Integer(ct[0]);
+      Integer m1 = (ct.length == 1 || ct[1].trim().equals("")) ? 0 : new Integer(ct[1]);
+
+      String transformTime = properties.getProperty("running.dataTransformTime");
+      if (transformTime == null) {
+         logger.info("未设置数据自动传送时间。");
+         return;
+      }
+      String[] tt = transformTime.trim().split(":");
+      if (tt[0].trim().equals("")) {
+         logger.info("未设置数据自动传送时间。");
+         return;
+      }
+      Integer h2 = new Integer(tt[0]);
+      Integer m2 = (tt.length == 1 || tt[1].trim().equals("")) ? 0 : new Integer(tt[1]);
+
+      String cleanTime = properties.getProperty("running.cleanTime");
+      if (cleanTime == null) {
+         logger.info("未设置数据自动清除时间。");
+         return;
+      }
+      String[] cc = cleanTime.trim().split(":");
+      if (cc[0].trim().equals("")) {
+         logger.info("未设置数据自动清除时间。");
+         return;
+      }
+      Integer h3 = new Integer(cc[0]);
+      Integer m3 = (cc.length == 1 || cc[1].trim().equals("")) ? 0 : new Integer(cc[1]);
+
+      String saveDay = properties.getProperty("running.saveDay");
+      
+//      logger.info("进入判断。");
+      Calendar calendar = Calendar.getInstance();
+      // 判断数据采集时间是否已到，如果到达采集时间启动数据采集任务。
+      if (h1 == calendar.get(Calendar.HOUR_OF_DAY) && m1 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 12) {
+         Properties latestCollectStatus = FileUtil.loadLatestCollectStatus();
+         Date sDate = DateUtil.lParse(String.valueOf(latestCollectStatus.get("collect.lastDate")));
+         Date eDate = new Date();
+
+         if (sDate == null) {
+            Calendar c = Calendar.getInstance();
+            c.set(Calendar.HOUR, 0);
+            c.set(Calendar.MINUTE, 0);
+            c.set(Calendar.SECOND, 0);
+            c.add(Calendar.DATE, -10);
+            sDate = c.getTime();
+         }
+         sDate = new Date(sDate.getTime() - 60000);
+         logger.info("数据采集时间已到。");
+         startCollection(sDate, eDate, Command.COMMAND_AUTOCOLLECT);
+      }
+      // 判断数据传送时间是否已到，如果到达传送时间启动数据传送任务。
+      if (h2 == calendar.get(Calendar.HOUR_OF_DAY) && m2 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 12) {
+         File fileDir = new File(Constant.DIR_DAT);
+         File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+         logger.info("数据传送时间已到。");
+         startTransfer(list, Constant.STATUS_ZIP);
+      }
+      // 判断数据清除时间是否已到，如果到达清除时间启动数据清除任务。
+      if (h3 == calendar.get(Calendar.HOUR_OF_DAY) && m3 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 12) {
+         File fileDir = new File(Constant.DIR_DAT);
+         File logfileDir = new File(Constant.DIR_LOG_DAT);
+         File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+         File[] list2 = logfileDir.listFiles();
+         File[] allList = new File[list.length + list2.length];
+         System.arraycopy(list, 0, allList, 0, list.length);  
+         System.arraycopy(list2, 0, allList, list.length, list2.length);
+         startClean(allList, saveDay);
+      }
+      // 00:00清除日志文件
+      if (00 == calendar.get(Calendar.HOUR_OF_DAY) && 00 == calendar.get(Calendar.MINUTE) && calendar.get(Calendar.SECOND) < 12) {
+         startCleanLog();
+      }
+
+      String fileName = System.getProperty("user.dir") + File.separator + "now.properties";
+      File nowFile = new File(fileName);
+      if (nowFile.exists()) {
+         Properties props = FileUtil.loadProperties(nowFile);
+         nowFile.delete();
+         String methord = (String) props.get("operation");
+         if (methord != null) {
+            if ("collect".equals(methord)) {
+               String sd = (String) props.get("dateStart");
+               String ed = (String) props.get("dateEnd");
+               int year = Integer.parseInt(sd.substring(0, 4));
+               int month = Integer.parseInt(sd.substring(4, 6));
+               int date = Integer.parseInt(sd.substring(6));
+               calendar.set(year, month - 1, date, 0, 0, 0);
+               Date sDate = calendar.getTime();
+
+               year = Integer.parseInt(ed.substring(0, 4));
+               month = Integer.parseInt(ed.substring(4, 6));
+               date = Integer.parseInt(ed.substring(6));
+               calendar.set(year, month - 1, date, 23, 59, 59);
+               Date eDate = calendar.getTime();
+               startCollection(sDate, eDate, Command.COMMAND_COLLECT);
+            }
+            else if (Command.COMMAND_SEND.equals(methord)) {
+               Iterator iterator = props.keySet().iterator();
+               List<File> listFiles = new ArrayList<File>();
+               while (iterator.hasNext()) {
+                  String key = iterator.next().toString();
+                  if (key.startsWith("file")) {
+                     String fname = props.getProperty(key).toString();
+                     fname = fname.replaceAll("zip", "cfg");
+                     File f = new File(Constant.DIR_DAT + fname);
+                     if (f.exists()) listFiles.add(f);
+                  }
+               }
+               if (listFiles.size() > 0) {
+                  File[] files = new File[listFiles.size()];
+                  listFiles.toArray(files);
+                  startTransfer(files, Constant.STATUS_ZIP);
+               }
+            }
+            else if ("reSend".equals(methord)) {
+               Iterator iterator = props.keySet().iterator();
+               List<File> listFiles = new ArrayList<File>();
+               while (iterator.hasNext()) {
+                  String key = iterator.next().toString();
+                  if (key.startsWith("file")) {
+                     String fname = props.getProperty(key).toString();
+                     fname = fname.replaceAll("zip", "cfg");
+                     File f = new File(Constant.DIR_DAT + fname);
+                     if (f.exists()) listFiles.add(f);
+                  }
+               }
+               if (listFiles.size() > 0) {
+                  File[] files = new File[listFiles.size()];
+                  listFiles.toArray(files);
+                  startTransfer(files, Constant.STATUS_ZIP_SENT);
+               }
+            }
+         }
+      }
+   }
+
+   private int startCollection(Date startDate, Date endDate, String type) throws InterruptedException {
+      // 避免数据采集进程重复启动。
+      if (dataCollectProcess != null && dataCollectProcess.isAlive()) {
+         logger.info("数据采集进行中，不能启动新的数据采集进程。......");
+         return 1;
+      }
+      logger.info("数据采集Service");
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("type", type);
+      initParameters.put("properties", properties);
+      initParameters.put("startDate", startDate);
+      initParameters.put("endDate", endDate);
+      dataCollectProcess = new DataCollectProcess(initParameters, new ProcessCallback() {
+         @Override
+         public void callBack(String type) {
+            if (Command.COMMAND_COLLECTANDSEND.equals(type)) {
+               File fileDir = new File(Constant.DIR_DAT);
+               File[] list = fileDir.listFiles(new NameFilter(".cfg"));
+               try {
+                  startTransfer(list, Constant.STATUS_ZIP);
+               }
+               catch (InterruptedException e) {
+                  logger.error("数据传送错误。");
+               }
+            }
+         }
+      });
+      dataCollectProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+
+   private int startTransfer(File[] fileList, String catalogStatus) throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (dataTransferProcess != null && dataTransferProcess.isAlive()) {
+         logger.info("数据传送进行中，不能启动新的数据传送进程。......");
+         return 1;
+      }
+
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      initParameters.put("fileList", fileList);
+      initParameters.put("catalogStatus", catalogStatus);
+      dataTransferProcess = new DataTransferProcess(initParameters);
+      dataTransferProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+
+   private int startClean(File[] fileList, String saveDay) throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (dataCleanProcess != null && dataCleanProcess.isAlive()) {
+         logger.info("数据清除进行中，不能启动新的数据清除进程。......");
+         return 1;
+      }
+
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      initParameters.put("fileList", fileList);
+      initParameters.put("saveDay", saveDay);
+      dataCleanProcess = new DataCleanProcess(initParameters);
+      dataCleanProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+
+   private int startCleanLog() throws InterruptedException {
+      // 避免数据传送进程重复启动。
+      if (logCleanProcess != null && logCleanProcess.isAlive()) {
+         logger.info("日志清除进行中，不能启动新的日志清除进程。......");
+         return 1;
+      }
+
+      logCleanProcess = new LogCleanProcess();
+      logCleanProcess.start();
+      Thread.sleep(2000);
+      return 0;
+   }
+
+   private int startCollectionLog(String logPath) throws InterruptedException {
+      if (collectionLogProcess != null && collectionLogProcess.isAlive()) {
+         logger.info("日志收集进行中，不能启动新的日志收集进程。......");
+         return 1;
+      }
+      logproperties.put("stationID", properties.getProperty("company.stationID"));
+      logproperties.put("companyNo", properties.getProperty("company.companyNo"));
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("logproperties", logproperties);
+      initParameters.put("properties", properties);
+      initParameters.put("logPath", logPath);
+      initParameters.put("rlogsize", rlogsize);
+      initParameters.put("wlogsize", wlogsize);
+      collectionLogProcess = new CollectionLogProcess(initParameters);
+      ((CollectionLogProcess) collectionLogProcess).setLogSize(new CollectionLogProcess.LogSize() {
+         public void getsize(long rsize, long wsize) {
+            rlogsize = rsize;
+            wlogsize = wsize;
+         }
+      });
+      collectionLogProcess.start();
+      Thread.sleep(5000);
+      return 0;
+   }
+   
+   private int startLogTransfer() throws InterruptedException {
+      if (logDataTransferProcess != null && logDataTransferProcess.isAlive()) {
+         logger.info("数据传送进行中，不能启动新的数据传送进程。......");
+         return 1;
+      }
+      Map<String, Object> initParameters = new HashMap<String, Object>();
+      initParameters.put("properties", properties);
+      logDataTransferProcess = new LogDataTransferProcess(initParameters);
+      logDataTransferProcess.start();
+      Thread.sleep(5000);
+      return 0;
+   }
+}

@@ -1,0 +1,193 @@
+package com.golead.dasService.communication;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.dasService.common.Command;
+import com.golead.dasService.common.Constant;
+import com.golead.dasService.filter.NameFilter;
+import com.golead.dasService.service.QueryTransactionProcess;
+
+public class CommunicationServerHandler extends SimpleChannelInboundHandler<String> {
+
+   private static Logger         logger   = Logger.getLogger(CommunicationServerHandler.class);
+
+   public static ChannelGroup    channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+
+   private CommunicationCallback communicationCallback;
+
+   public CommunicationServerHandler(CommunicationCallback communicationCallback) {
+      this.communicationCallback = communicationCallback;
+   }
+
+   @Override
+   protected void channelRead0(ChannelHandlerContext ctx, String message) throws Exception {
+      // // 收到消息直接打印输出
+      // logger.info("远程数据通讯客户端：" + ctx.channel().remoteAddress().toString() +
+      // ":" + message);
+      // communicationCallback.command(ctx.channel().remoteAddress().toString(),
+      // message);
+      // // 返回客户端消息 - 我已经接收到了你的消息
+      // ctx.writeAndFlush("命令接受成功!\n");
+   }
+
+   @Override
+   public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+      Channel incoming = ctx.channel();
+      // logger.info("远程数据通讯客户端：" + incoming.remoteAddress() + "连接成功。");
+      channels.add(incoming);
+   }
+
+   @Override
+   public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+      Channel incoming = ctx.channel();
+      // logger.info("远程数据通讯客户端：" + incoming.remoteAddress() + "离开。");
+      channels.remove(incoming);
+   }
+
+   @Override
+   public void channelActive(ChannelHandlerContext ctx) throws Exception {
+      logger.info("远程数据通讯客户端：" + ctx.channel().remoteAddress() + "连接成功。");
+      // ctx.writeAndFlush(Command.COMMAND_CONNECT + ",0,远程数据通讯服务端" +
+      // InetAddress.getLocalHost().getHostName() + "连接成功!\r\n");
+      super.channelActive(ctx);
+   }
+
+   @Override
+   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+      logger.info("远程数据通讯客户端:" + ctx.channel().remoteAddress() + "离开。");
+      super.channelInactive(ctx);
+   }
+
+   @Override
+   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+      logger.error("远程数据通讯客户端:" + ctx.channel().remoteAddress() + "异常:" + cause.getMessage());
+      ctx.close();
+   }
+
+   // 返回值调用此方法，而不是Read0方法
+   public void channelRead(ChannelHandlerContext ctx, Object msg) {
+      String message = msg.toString();
+      logger.info("远程数据通讯客户端：" + ctx.channel().remoteAddress().toString() + ":" + message);
+
+      Command command = new Command(message);
+      if (command == null || command.getName() == null || command.getName().equals("")) {
+         ctx.writeAndFlush(command.getName() + "," + "1,命令接受失败:" + message);
+         return;
+      }
+      if (command.getName().equalsIgnoreCase(Command.COMMAND_LOG)) {
+         ctx.writeAndFlush(command.getName() + "," + "0,start\r\n");
+         try {
+            FileInputStream in = new FileInputStream(Constant.LOG_FILE);
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in));
+            String tempstr = bufferedReader.readLine();
+            while (tempstr != null) {
+               ctx.writeAndFlush(command.getName() + "," + "0," + tempstr + "\r\n");
+               tempstr = bufferedReader.readLine();
+            }
+            bufferedReader.close();
+         } catch (IOException e) {
+            logger.error("日志文件读取错误。");
+            ctx.writeAndFlush(command.getName() + "," + "1,日志文件读取失败。\r\n");
+         }
+         ctx.writeAndFlush(command.getName() + "," + "0,end\r\n");
+      }
+      else if (command.getName().equalsIgnoreCase(Command.COMMAND_FILELIST)) {
+         StringBuffer sb = new StringBuffer("");
+         String filePath = System.getProperty("user.dir") + "/dat/";
+         File fileDir = new File(filePath);
+         FilenameFilter filter = new NameFilter(".cfg");
+         File[] list = fileDir.listFiles(filter);
+
+         try {
+            for (File file : list) {
+               Properties prop = new Properties();
+               InputStreamReader inr = new InputStreamReader(new FileInputStream(filePath + file.getName()), "GBK");
+               prop.load(inr);
+               inr.close();
+
+               String fileName = file.getName().replaceAll(".cfg", ".dat");
+               String createTime = prop.get("data.ASSETTYPE.createTime") == null ? "" : prop.get("data.ASSETTYPE.createTime").toString();
+               String sendTime = prop.get("catalog.sendTime") == null ? "" : prop.get("catalog.sendTime").toString();
+               String status = prop.get("catalog.status") == null ? "" : prop.get("catalog.status").toString().trim();
+               status = getTransStatusName(status) == null ? "" : getTransStatusName(status);
+               sb.append(fileName).append(" ;").append(createTime).append(" ;").append(sendTime).append(" ;").append(status).append(" ###");
+               if (sb.length() > 8000) break;
+            }
+
+            ctx.writeAndFlush(command.getName() + "," + "0," + sb.toString() + "\r\n");
+         } catch (IOException e) {
+            logger.error("文件列表读取错误。");
+            ctx.writeAndFlush(command.getName() + "," + "1,文件列表读取失败。\r\n");
+         }
+      }
+      else if (command.getName().equalsIgnoreCase(Command.COMMAND_TRANSQUERY)) {
+         try {
+            Map<String, String> paras = command.getParameters();
+            String transNo = paras.get("transactionNumber");
+
+            QueryTransactionProcess qtp = new QueryTransactionProcess();
+            String dataStr=qtp.query(transNo);
+            StringBuffer strJson = new StringBuffer("");
+            strJson.append("transactionType:\"S\",");
+            strJson.append("transactionNumber:\"" + transNo + "\",");
+            strJson.append(dataStr);
+            ctx.writeAndFlush("{exit:\"0\"," + strJson.toString() + "}\r\n");
+         } catch (Exception e) {
+            logger.error("数据读取错误。");
+            ctx.writeAndFlush("{exit:\"1\",meassage:\"交易数据读取失败。\"}\r\n");
+         }
+      }
+      else {
+         communicationCallback.command(ctx.channel().remoteAddress().toString(), command);
+         ctx.writeAndFlush(command.getName() + "," + "0,命令接受成功。\r\n");
+      }
+   }
+
+   private String readLog(int idx) {
+      StringBuffer sttLog = new StringBuffer();
+      FileInputStream in;
+      try {
+         in = new FileInputStream(Constant.LOG_FILE);
+         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in));
+         String tempstr = bufferedReader.readLine();
+         while (tempstr != null) {
+            sttLog.append(tempstr);
+            tempstr = bufferedReader.readLine();
+         }
+         bufferedReader.close();
+         return sttLog.toString();
+      } catch (IOException e) {
+         logger.error("日志文件读取错误。");
+         return null;
+      }
+   }
+
+   private Map<String, String> transStatus;
+
+   private String getTransStatusName(String key) {
+      if (transStatus == null) {
+         transStatus = new HashMap<String, String>();
+         transStatus.put("collected", "已采集");
+         transStatus.put("sent", "已发送");
+         transStatus.put("zip", "已采集");
+      }
+      return transStatus.get(key);
+   }
+}

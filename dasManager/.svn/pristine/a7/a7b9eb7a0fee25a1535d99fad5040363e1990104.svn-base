@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="DAS">
+	<property name="jre.dir" value="${java.home}" />
+	<!-- Source  -->
+	<property name="src.dasManager" value="src" />
+	<property name="src.dasService" value="..\dasService\src" />
+	<property name="src.dasService.dao" value="..\dasService\dao" />
+	<property name="src.dasUpdateService" value="..\updateService\src" />
+	<!-- Target Folder -->
+	<property name="dir.target" value="target" />
+	<property name="target.classes" value="${dir.target}\classes" />
+	<property name="target.classes.dasService" value="${target.classes}\dasService" />
+	<property name="target.classes.dasUpdateService" value="${target.classes}\dasUpdateService" />
+	<property name="target.classes.dasManager" value="${target.classes}\dasManager" />
+	<property name="target.das" value="${dir.target}\das" />
+	<property name="target.das.bin" value="${target.das}\bin" />
+	<!-- Compile -->
+	<property name="lib.swt" value="build\lib\swt_x86" />
+	<!-- Jar Output -->
+	<property name="jar.lib" value="das_lib" />
+	<property name="jar.out" value="${target.das.bin}\lib"/>
+	<!-- Path -->
+	<path id="project.lib">
+		<fileset dir="lib">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${lib.swt}">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+	<!-- Clean -->
+	<target name="clean">
+		<delete dir="${dir.target}" />
+	</target>
+	<!-- Init -->
+	<target name="init">
+		<echo message="The base dir is: ${basedir}" />
+		<mkdir dir="${dir.target}" />
+		<mkdir dir="${target.classes}" />
+		<mkdir dir="${target.classes.dasService}" />
+		<mkdir dir="${target.classes.dasUpdateService}" />
+		<mkdir dir="${target.das}" />
+		<mkdir dir="${target.das.bin}" />
+		<mkdir dir="${target.das}\dat" />
+		<mkdir dir="${target.das}\update" />
+		<mkdir dir="${target.das}\log" />
+		<mkdir dir="${jar.out}\${jar.lib}"/> 
+		<copy encoding="utf-8" file="build\config.properties" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\install.bat" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\uninstall.bat" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\update.bat" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\dasManager.exe" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\dasService.exe" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\dasUpdateService.exe" todir="${target.das}" />
+		<copy encoding="utf-8" file="build\DAS数据采集软件安装配置使用说明.docx" todir="${target.das}"/>
+		<unzip src="build\jre7.zip" dest="${target.das.bin}" /> 
+		<copy encoding="utf-8" includeemptydirs="false" todir="${target.classes.dasManager}">
+			<fileset dir="${src.dasManager}">
+				<exclude name="**/*.launch" />
+				<exclude name="**/*.java" />
+			</fileset>
+		</copy>
+		<copy encoding="utf-8" file="${src.dasService}\log4j.properties" todir="${target.classes.dasService}"/>
+		<copy encoding="utf-8" file="${src.dasUpdateService}\log4j.properties" todir="${target.classes.dasUpdateService}"/>
+		<copy encoding="utf-8" includeemptydirs="false" todir="${target.classes.dasService}">
+			<fileset dir="${src.dasService}">
+				<exclude name="**/*.launch" />
+				<exclude name="**/*.java" />
+			</fileset>
+			<fileset dir="${src.dasService.dao}">
+					<exclude name="**/*.launch" />
+					<exclude name="**/*.java" />
+			</fileset>
+		</copy>
+		<copy encoding="utf-8" todir="${jar.out}\${jar.lib}"> 
+			<path refid="project.lib" /> 
+		</copy>
+	</target>
+	<!-- Compile -->
+	<target name="compileDasService">
+		<javac destdir="${target.classes.dasService}" includeantruntime="false" encoding="UTF-8" >
+			<src path="${src.dasService}" />
+			<src path="${src.dasService.dao}" />
+			<classpath>
+				<pathelement location="${target.classes.dasService}" />
+				<fileset dir="lib">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</javac>
+		<echo message="DAS_SERVICE_COMPILE SUCCESSFUL" />
+	</target>
+	<target name="compileDasManager">
+		<javac destdir="${target.classes.dasManager}" includeantruntime="false" encoding="UTF-8" >
+			<src path="${src.dasManager}" />
+			<classpath>
+				<pathelement location="${target.classes.dasService}" />
+				<pathelement location="${target.classes.dasManager}" />
+				<fileset dir="lib">
+					<include name="**/*.jar" />
+				</fileset>
+				<fileset dir="${lib.swt}">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</javac>
+		<echo message="DAS_MANAGER_COMPILE SUCCESSFUL" />
+	</target>
+	<target name="compileDasUpdateService">
+		<javac destdir="${target.classes.dasUpdateService}" includeantruntime="false" encoding="UTF-8" >
+			<src path="${src.dasUpdateService}" />
+			<classpath>
+				<pathelement location="${target.classes.dasUpdateService}" />
+				<fileset dir="lib">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</javac>
+		<echo message="DAS_SERVICE_COMPILE SUCCESSFUL" />
+	</target>
+	<!-- Output Jar -->
+	<target name="buildDasServiceJar" depends="compileDasService">
+		<jar destfile="${jar.out}\das_service\dasService.jar" basedir="${target.classes.dasService}"/>
+	</target>
+	<target name="buildDasUpdateServiceJar" depends="compileDasUpdateService">
+		<jar destfile="${jar.out}\das_update_service\dasUpdateService.jar" basedir="${target.classes.dasUpdateService}"/>
+	</target>
+	<target name="buildDasManagerJar" depends="compileDasManager">
+		<jar destfile="${jar.out}\das_manager\dasManger.jar" basedir="${target.classes.dasManager}"/>  
+	</target>
+	<!-- Build -->
+	<target name="build">
+		<antcall target="clean" />
+		<antcall target="init" />
+		<antcall target="buildDasServiceJar" />
+		<antcall target="buildDasUpdateServiceJar" />
+		<antcall target="buildDasManagerJar" />
+		<zip basedir="${target.das}" zipfile="${dir.target}\das.zip"/> 
+		<echo message="FINISH BUILD" />
+	</target>
+</project>

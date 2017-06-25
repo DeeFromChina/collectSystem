@@ -1,0 +1,27 @@
+2016.03.23 14:52:00  INFO DataCollectProcess(35):? 数据采集开始。
+ 2016.03.23 14:52:00  INFO DataCollectProcess(117):? 数据库已连接。
+ 2016.03.23 14:52:00  INFO CollectAddrType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160323145200.dat
+ 2016.03.23 14:52:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160323145200.cfg
+ 2016.03.23 14:52:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE.properties
+ 2016.03.23 14:52:00  INFO CollectAssetType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160323145200.dat
+ 2016.03.23 14:52:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160323145200.cfg
+ 2016.03.23 14:52:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE.properties
+ 2016.03.23 14:52:00  INFO CollectTrade(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160323145200.dat
+ 2016.03.23 14:52:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160323145200.cfg
+ 2016.03.23 14:52:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade.properties
+ 2016.03.23 14:52:00  INFO DataCollectProcess(128):? 数据库已关闭。
+ 2016.03.23 14:52:00  INFO DataCollectProcess(45):? 数据采集结束。
+ 2016.03.23 14:56:00  INFO DataCollectProcess(35):? 数据采集开始。
+ 2016.03.23 14:56:00  INFO DataCollectProcess(117):? 数据库已连接。
+ 2016.03.23 14:56:00  INFO CollectAddrType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160323145600.dat
+ 2016.03.23 14:56:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE20160323145600.cfg
+ 2016.03.23 14:56:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ADDRTYPE.properties
+ 2016.03.23 14:56:00  INFO CollectAssetType(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160323145600.dat
+ 2016.03.23 14:56:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE20160323145600.cfg
+ 2016.03.23 14:56:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/ASSETTYPE.properties
+ 2016.03.23 14:56:00  INFO CollectTrade(39):? 生成数据文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160323145600.dat
+ 2016.03.23 14:56:00  INFO BaseDataCollect(77):? 生成配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade20160323145600.cfg
+ 2016.03.23 14:56:00  INFO BaseDataCollect(116):? 保存配置文件：C:\project_eclipse\dataCenter\dataTran/dat/trade.properties
+ 2016.03.23 14:56:00  INFO DataCollectProcess(128):? 数据库已关闭。
+ 2016.03.23 14:56:00  INFO DataCollectProcess(45):? 数据采集结束。
+ 

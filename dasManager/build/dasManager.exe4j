@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<exe4j version="5.0.1" transformSequenceNumber="2">
+  <directoryPresets config="//Mac/Home/Desktop/output/x86/client/bin/lib/das_service" />
+  <application name="dasManager" distributionSourceDir="//Mac/Home/Desktop/output/x86/client">
+    <languages>
+      <principalLanguage id="en" customLocalizationFile="" />
+    </languages>
+  </application>
+  <executable name="dasManager" type="1" iconSet="false" iconFile="" executableDir="" redirectStderr="true" stderrFile="error.log" stderrMode="overwrite" redirectStdout="false" stdoutFile="output.log" stdoutMode="overwrite" failOnStderrOutput="true" executableMode="1" changeWorkingDirectory="true" workingDirectory="." singleInstance="false" serviceStartType="2" serviceDependencies="" serviceDescription="" jreLocation="" executionLevel="asInvoker" checkConsoleParameter="false" globalSingleInstance="false" singleInstanceActivate="true" dpiAware="false" amd64="false">
+    <messageSet />
+    <versionInfo include="false" fileVersion="" fileDescription="" legalCopyright="" internalName="" productName="" companyName="" productVersion="" />
+  </executable>
+  <splashScreen show="false" width="0" height="0" bitmapFile="" windowsNative="false" textOverlay="false">
+    <text>
+      <statusLine x="20" y="20" text="" fontSize="8" fontColor="0,0,0" bold="false" />
+      <versionLine x="20" y="40" text="version %VERSION%" fontSize="8" fontColor="0,0,0" bold="false" />
+    </text>
+  </splashScreen>
+  <java mainClass="com.golead.dasManager.DasManager" vmParameters="-Xms256m -Xmx512m -XX:MaxPermSize=256m -XX:PermSize=256m -Dfile.encoding=UTF-8" arguments="" allowVMPassthroughParameters="true" preferredVM="" bundleRuntime="true" minVersion="1.7" maxVersion="" allowBetaVM="false" jdkOnly="false">
+    <searchSequence>
+      <directory location="./bin/jre7" />
+    </searchSequence>
+    <classPath>
+      <scanDirectory location="./bin/lib/das_lib" failOnError="false" />
+      <scanDirectory location="./bin/lib/das_manager" failOnError="false" />
+      <archive location="//Mac/Home/Desktop/output/x86/client/bin/lib/das_service/dasService.jar" failOnError="false" />
+    </classPath>
+    <nativeLibraryDirectories />
+  </java>
+  <includedFiles />
+  <unextractableFiles />
+</exe4j>

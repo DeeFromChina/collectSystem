@@ -1,0 +1,145 @@
+package com.golead.disManager.ui.dialog;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.DateTime;
+import org.eclipse.swt.widgets.Dialog;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.wb.swt.SWTResourceManager;
+
+import com.golead.disManager.communication.CommunicationClient;
+
+import swing2swt.layout.BorderLayout;
+
+public class TransDialog extends Dialog {
+   private static Logger      logger     = Logger.getLogger(StationDialog.class);
+   protected Shell            shell;
+   private DateTime               txtDateStart;
+   private DateTime               txtDateEnd;
+   private Map<String, CommunicationClient> commClients = new HashMap<String, CommunicationClient>();
+   private String ip;
+   public TransDialog(Shell parent, int style) {
+      super(parent, style);
+      setText("命令");
+   }
+   
+   public void open(String ip,Map<String, CommunicationClient> commClients) {
+      this.ip = ip;
+      this.commClients = commClients;
+      createContents();
+      shell.open();
+      shell.layout();
+      Display display = getParent().getDisplay();
+      while (!shell.isDisposed()) {
+         if (!display.readAndDispatch()) {
+            display.sleep();
+         }
+      }
+   }
+   
+   private void createContents() {
+      shell = new Shell(getParent(), SWT.BORDER | SWT.CLOSE);
+      shell.setImage(SWTResourceManager.getImage(ConfigDialog.class, "/images/config24.png"));
+      shell.setText("命令");
+      shell.setSize(500, 120);
+      shell.setLayout(new BorderLayout(0, 0));
+      Rectangle r = Display.getDefault().getBounds();
+      int shellH = shell.getBounds().height;
+      int shellW = shell.getBounds().width;
+      shell.setLocation((r.width - shellW) / 2, (r.height - shellH) / 2);
+      
+      Composite composite = new Composite(shell, SWT.NONE);
+      composite.setLayoutData(BorderLayout.SOUTH);
+      composite.setLayout(new FormLayout());
+
+      Button btnCancel = new Button(composite, SWT.NONE);
+      FormData fd_btnCancel = new FormData();
+      fd_btnCancel.right = new FormAttachment(100, -10);
+      fd_btnCancel.top = new FormAttachment(0, 5);
+      fd_btnCancel.bottom = new FormAttachment(100, -5);
+      fd_btnCancel.width = 80;
+      btnCancel.setLayoutData(fd_btnCancel);
+      btnCancel.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            shell.close();
+         }
+      });
+      btnCancel.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnCancel.setText("    取消(&C)    ");
+      
+      Button btnOk = new Button(composite, SWT.NONE);
+      FormData fd_btnOk = new FormData();
+      fd_btnOk.right = new FormAttachment(btnCancel, -10);
+      fd_btnOk.top = new FormAttachment(0, 5);
+      fd_btnOk.bottom = new FormAttachment(100, -5);
+      fd_btnOk.width = 80;
+      btnOk.setLayoutData(fd_btnOk);
+      btnOk.addSelectionListener(new SelectionAdapter() {
+         @Override
+         public void widgetSelected(SelectionEvent e) {
+            String dateStart = String.valueOf(txtDateStart.getYear())+number(txtDateStart.getMonth()+1)+number(txtDateStart.getDay())+"000000";
+            String dateEnd = String.valueOf(txtDateEnd.getYear())+number(txtDateEnd.getMonth()+1)+number(txtDateEnd.getDay())+"235959";
+            CommunicationClient commClient = commClients.get(ip);
+            commClient.send("command:trans "+"dateStart:"+dateStart+" dateEnd:"+dateEnd);
+            shell.close();
+         }
+      });
+      btnOk.setFont(SWTResourceManager.getFont("微软雅黑", 9, SWT.NORMAL));
+      btnOk.setText("    确定(&O)    ");
+      
+      Composite composite_1 = new Composite(shell, SWT.NONE);
+      composite_1.setLayoutData(BorderLayout.CENTER);
+      composite_1.setLayout(new FormLayout());
+      
+      Label lblDate = new Label(composite_1, SWT.NONE);
+      lblDate.setText("收集日期");
+      lblDate.setAlignment(SWT.RIGHT);
+      FormData fd_lblDate = new FormData();
+      fd_lblDate.top = new FormAttachment(20, 10);
+      fd_lblDate.left = new FormAttachment(0, 40);
+      lblDate.setLayoutData(fd_lblDate);
+
+      txtDateStart = new DateTime(composite_1, SWT.BORDER);
+      txtDateStart.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDateStart = new FormData();
+      fd_txtDateStart.top = new FormAttachment(20, 5);
+      fd_txtDateStart.left = new FormAttachment(lblDate,10);
+      fd_txtDateStart.width = 150;
+      txtDateStart.setLayoutData(fd_txtDateStart);
+      
+      Label lblTo = new Label(composite_1, SWT.NONE);
+      lblTo.setText("至");
+      FormData fd_lblTo = new FormData();
+      fd_lblTo.top = new FormAttachment(20, 10);
+      fd_lblTo.left = new FormAttachment(txtDateStart, 15);
+      lblTo.setLayoutData(fd_lblTo);
+      
+      txtDateEnd = new DateTime(composite_1, SWT.BORDER);
+      txtDateEnd.setFont(SWTResourceManager.getFont("微软雅黑", 10, SWT.NORMAL));
+      FormData fd_txtDateEnd = new FormData();
+      fd_txtDateEnd.top = new FormAttachment(20, 5);
+      fd_txtDateEnd.left = new FormAttachment(lblTo,15);
+      fd_txtDateEnd.width = 150;
+      txtDateEnd.setLayoutData(fd_txtDateEnd);
+   }
+   
+   private String number(int i){
+      if(i<10) return "0"+String.valueOf(i);
+      return String.valueOf(i);
+   }
+}
+

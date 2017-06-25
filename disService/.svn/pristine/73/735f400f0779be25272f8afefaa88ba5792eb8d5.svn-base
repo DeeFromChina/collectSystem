@@ -1,0 +1,210 @@
+package com.golead.rmi.impl;
+
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.golead.disService.common.utils.DataName;
+import com.golead.disService.common.utils.JsonUtils;
+import com.golead.disService.dao.DataSource;
+import com.golead.disService.dao.ExecuteLogFile;
+import com.golead.rmi.DitTransfer;
+
+public class DitTransferImpl extends UnicastRemoteObject implements DitTransfer {
+   private static final long serialVersionUID = -4716817233718444223L;
+   private static Logger             logger             = Logger.getLogger(ExecuteLogFile.class);
+   private Connection                connection;
+   
+   public DitTransferImpl() throws RemoteException {
+      super();
+   }
+
+   @Override
+   public String transfer(String data) throws RemoteException {
+      goStart(data);
+      return "0";
+   }
+   
+   public void goStart(String data) {
+      logger.info("日志导入开始。");
+      try {
+         connection = openConnection();
+         if (connection != null) {
+            executeInsertSql(data);
+            closeConnection(connection);
+         }
+         else {
+            logger.info("数据加载过程终止。");
+         }
+      }
+      catch (Exception e) {
+         e.printStackTrace();
+         logger.info("日志收集失败。");
+      }
+      logger.info("日志导入结束。");
+   }
+
+   private Connection openConnection() {
+      try {
+         Connection conn = DataSource.getConnection();
+         logger.info("数据库已连接。");
+         return conn;
+      }
+      catch (SQLException e) {
+         logger.error("数据库连接失败。");
+         return null;
+      }
+   }
+
+   private void executeInsertSql(String data) {
+      String company = "";
+      String stationId = "";
+      List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+      if(data != null){
+         String[] dataStr = data.split(";");
+         for(int i = 0; i < dataStr.length; i++){
+            Map<String, Object> map = JsonUtils.Json2Map(dataStr[i]);
+            stationId = map.get("STATION").toString();
+            company = map.get("COMPANY").toString();
+            list.add(map);
+         }
+      }
+
+      List<ExecuteLogFile> exceutes = new ArrayList<ExecuteLogFile>();
+
+      String[] tables = { "DIT_READING", "DIT_TANK_READING" };
+      Map<String, Integer[]> typeMap = new HashMap<String, Integer[]>();
+      StringBuffer colums1 = new StringBuffer();
+      StringBuffer colums2 = new StringBuffer();
+      colums1.append(DataName.DataFirst1 + ",");
+      colums1.append(DataName.DataFirst2 + ",");
+      colums1.append(DataName.DataFirst3 + ",");
+      colums1.append(DataName.DataFirst4 + ",");
+      colums1.append(DataName.DataFirst5 + ",");
+      colums1.append(DataName.DataFirst6 + ",");
+      colums1.append(DataName.DataFirst7 + ",");
+      colums1.append(DataName.DataFirst8 + ",");
+      colums1.append(DataName.DataFirst9 + ",");
+      colums1.append(DataName.MsgID + ",");
+      colums1.append(DataName.SOURCE + ",");
+      colums1.append(DataName.LOG_TIME + ",");
+      colums1.append(DataName.COMPANY + ",");
+      colums1.append(DataName.STATION);
+      colums2.append(DataName.DataTwo1 + ",");
+      colums2.append(DataName.DataTwo2 + ",");
+      colums2.append(DataName.DataTwo3 + ",");
+      colums2.append(DataName.DataTwo4 + ",");
+      colums2.append(DataName.DataTwo5 + ",");
+      colums2.append(DataName.DataTwo6 + ",");
+      colums2.append(DataName.DataTwo7 + ",");
+      colums2.append(DataName.DataTwo8 + ",");
+      colums2.append(DataName.DataTwo9 + ",");
+      colums2.append(DataName.DataTwo10 + ",");
+      colums2.append(DataName.MsgID + ",");
+      colums2.append(DataName.SOURCE + ",");
+      colums2.append(DataName.LOG_TIME + ",");
+      colums2.append(DataName.COMPANY + ",");
+      colums2.append(DataName.STATION);
+      if(colums1.length() == 0 || colums2.length() == 0){
+         return;
+      }
+      Map<String, String> columMap = new HashMap<String, String>();
+      columMap.put("DIT_READING", colums1.toString());
+      columMap.put("DIT_TANK_READING", colums2.toString());
+      for (String table : tables) {
+         String colums = null;
+         if("DIT_READING".equals(table)){
+            colums = colums1.toString();
+         }else if("DIT_TANK_READING".equals(table)){
+            colums = colums2.toString();
+         }
+         if(colums == null || colums.length() == 0){
+            return;
+         }
+         ResultSet rs = checkTable(table, colums); // 检查要导入的数据表是否存在。
+         if (rs == null) {
+            logger.error(String.format("找不到数据表：%s", table));
+            continue;
+         }
+
+         ResultSetMetaData rsmd;
+         Integer[] types = null;
+         try {
+            rsmd = rs.getMetaData(); // 获取数据表的数据结构。
+            types = new Integer[rsmd.getColumnCount()];
+            for (int k = 0; k < rsmd.getColumnCount(); k++) {
+               types[k] = rsmd.getColumnType(k + 1);
+            }
+            typeMap.put(table, types);
+         }
+         catch (SQLException e1) {
+            logger.error(String.format("数据表【%s】错误。", table));
+            continue;
+         }
+      }
+
+      Map<String, Object> params = new HashMap<String, Object>();
+      params.put("COMPANY", company);
+      params.put("STATION", stationId);
+      params.put("type", typeMap);
+      params.put("columsMap", columMap);
+      ExecuteLogFile executeLogFile = new ExecuteLogFile(list, tables, params);
+      exceutes.add(executeLogFile);
+      executeLogFile.start();
+
+      boolean wait = true;
+      while (wait) {
+         try {
+            int isBusy = 0;
+            for (ExecuteLogFile es : exceutes) {
+               if (es.isAlive()) {
+                  isBusy++;
+               }
+            }
+            if (isBusy == 0) wait = false;
+            Thread.sleep(200);
+         }
+         catch (InterruptedException e) {
+            logger.error("线程错误。");
+         }
+      }
+   }
+
+   private void closeConnection(Connection connection) {
+      try {
+         if (connection != null && !connection.isClosed()) {
+            connection.close();
+            logger.info("数据库已关闭。");
+         }
+      }
+      catch (SQLException e) {
+         logger.error("数据库关闭失败。");
+      }
+   }
+
+   private ResultSet checkTable(String table, String colums) {
+      colums = colums.replace(DataName.MsgID, "MSG_ID");
+      colums = colums.replace(DataName.SOURCE, "SOURCE");
+      colums = colums.replace(DataName.LOG_TIME, "LOG_TIME");
+      String sql = "select " + colums +" from  " + table + " where 1=0";
+      logger.debug(sql);
+      try {
+         Statement ps = connection.createStatement();
+         return ps.executeQuery(sql);
+      }
+      catch (SQLException e) {
+         logger.error(e);
+         return null;
+      }
+   }
+}

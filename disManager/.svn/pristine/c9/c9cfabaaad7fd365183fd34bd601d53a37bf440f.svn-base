@@ -1,0 +1,41 @@
+package com.golead.disManager.ui.provider;
+
+import java.util.Map;
+import org.eclipse.jface.viewers.ITableLabelProvider;
+import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.swt.graphics.Image;
+
+public class StationTableLabelProvider extends LabelProvider implements ITableLabelProvider {
+   public String getColumnText(Object element, int columnIndex) {
+      if (element instanceof Map) {
+         Map<String, Object> p = (Map<String, Object>) element;
+         if (columnIndex == 0) {
+            return p.get("orgName").toString();
+         }
+         else if (columnIndex == 1) {
+            return p.get("no").toString();
+         }
+         else if (columnIndex == 2) {
+            return p.get("stationName").toString();
+         }
+         else if (columnIndex == 3) {
+//            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//            return sdf.format(p.get("transDate").toString());
+          return p.get("transDate").toString();
+         }
+         else if (columnIndex == 4) {
+            return p.get("transStatus").toString();
+         }
+         else if (columnIndex == 5) { return p.get("loadDate").toString(); }
+         else if (columnIndex == 6) { return p.get("loadStatus").toString(); }
+         else if (columnIndex == 7) { return p.get("linkStatus").toString(); }
+         else if (columnIndex == 8) { return p.get("memo").toString(); }
+      }
+      return null;
+   }
+
+   public Image getColumnImage(Object element, int columnIndex) {
+      return null;
+   }
+
+}

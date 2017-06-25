@@ -1,0 +1,349 @@
+package com.golead.disService.service;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.log4j.Logger;
+
+import com.golead.disService.common.Constant;
+import com.golead.disService.common.utils.DateUtil;
+import com.golead.disService.common.utils.FileUtil;
+import com.golead.disService.common.utils.ZipUtil;
+import com.golead.disService.filter.NameFilter;
+
+public class DataLoadProcess extends Thread {
+
+	private static Logger    logger      = Logger.getLogger(DataLoadProcess.class);
+	
+	private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+	
+	private Connection       connection;
+	
+	private Properties       properties;
+	
+	private final String	 dasDataDirPath;
+	
+	public DataLoadProcess(Map<String, Object> initParameters) {
+		this.properties = (Properties)initParameters.get("properties");
+		this.dasDataDirPath = String.valueOf(this.properties.get("ftpServer.dasDataDir"));
+	}
+	
+	@Override
+	public void run() {
+		logger.info("数据加载开始【" + DateUtil.getNowDate() + "】");
+		
+		try {
+			Class.forName("oracle.jdbc.driver.OracleDriver");
+		} catch (ClassNotFoundException e) {
+			logger.error("找不到数据库驱动程序。");
+			return;
+		}
+		
+		List<File> targetFileList = scanTargetFiles();
+		if(targetFileList.size() > 0) {
+			unzipData(targetFileList);
+			loadData(targetFileList);
+		}
+		
+		logger.info("数据加载结束【" + DateUtil.getNowDate() + "】");
+	}
+	
+	private void openConnection() {
+		String hostname = properties.getProperty("server.severName");
+		String port = properties.getProperty("server.port");
+		String userName = properties.getProperty("server.userName");
+		String password = properties.getProperty("server.password");
+		String url = "jdbc:oracle:thin:@" + hostname + ":" + port + ":orcl";
+
+		try {
+			connection = DriverManager.getConnection(url, userName, password);
+			logger.info("数据库已连接。");
+		} catch (SQLException e) {
+			logger.error("数据库连接失败。");
+			connection = null;
+		}
+	}
+
+	private void closeConnection() {
+		try {
+			if (connection != null && !connection.isClosed()) {
+				connection.close();
+				logger.info("数据库已关闭。");
+			}
+		} catch (SQLException e) {
+			logger.error("数据库关闭失败。");
+		}
+	}
+	
+	private List<File> scanTargetFiles() {
+		logger.info("开始扫描文件，ftp上传文件夹路径：" + dasDataDirPath);
+		
+		final List<File> targetFileList = new ArrayList<File>();
+		FileUtil.scanDirectory(dasDataDirPath, new FileUtil.scanDirectoryHandller(){
+			@Override
+			public int getScanDepth() { return 3; }
+			
+			@Override
+			public File[] listFile(int depth, File file) {
+				return (depth == getScanDepth() ? file.listFiles(new NameFilter("cfg")) : file.listFiles());
+			}
+			
+			@Override
+			public void handle(int depth, File file) { 
+				if(depth == getScanDepth()) {
+					Properties cfg = FileUtil.loadProperties(file);
+					String status = cfg.getProperty("catalog.status");
+					if(Constant.STATUS_SENT.equalsIgnoreCase(status) 
+							|| Constant.STATUS_UNZIP.equalsIgnoreCase(status)) 
+						targetFileList.add(file);
+				}
+			}
+			
+		});
+		
+		logger.info("完成文件扫描，"+ targetFileList.size() + "个文件需要被加载。");
+		
+		return targetFileList;
+	}
+	
+	private void unzipData(List<File> targetFileList) {
+		logger.info("开始解压zip文件。");
+		
+		for(File file : targetFileList) {
+			unzipData(file);
+		}
+		
+		logger.info("完成zip文件解压。");
+	}
+	
+	private void unzipData(File cfgFile) {
+		Properties cfg = FileUtil.loadProperties(cfgFile);
+		
+		String stationId = cfg.getProperty("station.id");
+		String catalogName = cfg.getProperty("catalog.name");
+		
+		File zipFile = new File(cfgFile.getAbsolutePath().replaceAll(".cfg", ".zip"));
+		if (!zipFile.exists()) {
+			logger.error(String.format("加油站【%s】文件【%s】不存在。", stationId, zipFile.getName()));
+			return;
+		}
+		
+		if(!FileUtil.md5File(zipFile).equals(cfg.get("catalog.md5"))) {
+			logger.error(String.format("加油站【%s】文件【%s】不完整。", stationId, zipFile.getName()));
+			return;
+		}
+		
+		try {
+			String unzipPath = System.getProperty("user.dir") + File.separator + "temp" + File.separator;
+			String parentFolder = zipFile.getAbsolutePath().replace(this.dasDataDirPath, "");
+			parentFolder = parentFolder.substring(0, parentFolder.lastIndexOf(File.separator) + 1);
+			unzipPath += parentFolder;
+			logger.info(String.format("加油站【%s】文件【%s】解压到：%s", stationId, zipFile.getName(), unzipPath));
+			ZipUtil.unzip(zipFile.getAbsolutePath(), unzipPath, ZipUtil.PASSWD);
+			
+			cfg.setProperty("catalog.status", Constant.STATUS_UNZIP);
+			cfg.setProperty("catalog.unzip.path", unzipPath + zipFile.getName().replace(".zip", "") + File.separator);
+			cfg.setProperty("catalog.unzip.time", DateUtil.lFormat(new Date()));
+			FileUtil.saveProperties(cfgFile, cfg);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			logger.error(String.format("加油站【%s】文件【%s】解压失败。", stationId, zipFile.getName()));
+			return;
+		}
+	}
+	
+	private void loadData(List<File> targetFileList) {
+		
+		openConnection();
+		
+		logger.info("开始插入数据。");
+		
+		for(File file : targetFileList) {
+			executeInsertSql(file);
+		}
+		
+		logger.info("完成数据插入。");
+
+		closeConnection();
+		
+	}
+	
+	private void executeInsertSql(File cfgFile) {
+		Properties cfg = FileUtil.loadProperties(cfgFile);
+		if(!Constant.STATUS_UNZIP.equalsIgnoreCase(cfg.getProperty("catalog.status"))) 
+			return;
+		
+		BufferedReader br = null;
+		int tableCount = 0;
+		boolean isSuccess = false;
+		String tableStr = cfg.getProperty("catalog.tables");
+		String unzipPath = cfg.getProperty("catalog.unzip.path");
+		String stationId = cfg.getProperty("station.id");
+		String catalogName = cfg.getProperty("catalog.name");
+		String catalogStartDate = cfg.getProperty("catalog.startDate");
+		String catalogEndDate = cfg.getProperty("catalog.endDate");
+		logger.info(String.format("加油站【%s】上传数据【%s】取数区间【%s至%s】开始插入数据库", stationId, catalogName, catalogStartDate, catalogEndDate));
+		
+		try {
+			List<String> sqlList = new ArrayList<String>();
+			String[] tables = tableStr.split(";");
+			for(String table : tables) {
+				String fileName = cfg.getProperty("data." + table + ".fileName");
+				String columns = cfg.getProperty("data." + table + ".columns");
+				String primaryKey = cfg.getProperty("data." + table + ".primaryKey");
+				File dataFile = new File(unzipPath+fileName);
+				if(!dataFile.exists()) {
+					logger.error(String.format("加油站【%s】文件【%s】缺少数据文件【%s】。", stationId, catalogName, dataFile.getName()));
+					continue;
+				}
+				
+				tableCount++;
+				
+				br = new BufferedReader(new FileReader(dataFile));
+				String in = null;
+				while((in = br.readLine()) != null) {
+					if(isRepeat(table, stationId, primaryKey, columns, in)){
+						continue;
+					}
+					
+					StringBuffer sb = new StringBuffer();
+					for(String s : in.split(";")) {
+						if(!"null".equalsIgnoreCase(s))
+							sb.append("'" + s + "',");
+						else
+							sb.append("null,");
+					}
+					
+					String values = sb.toString();
+					values = values.substring(0, values.lastIndexOf(","));
+					
+					sqlList.add(String.format("insert into BOS_%s(%s,STATION_ID) values(%s,%s)", table, columns, values, stationId));
+				}
+			}
+			
+			if(tableCount == tables.length)
+				isSuccess = execTransaction(sqlList);
+			
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+			
+		} finally {
+			try {
+				br.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		if(isSuccess) {
+			cfg.setProperty("catalog.status", Constant.STATUS_FINISH);
+			FileUtil.saveProperties(cfgFile, cfg);
+		} else {
+			cfg.setProperty("catalog.status", Constant.STATUS_FAIL);
+			FileUtil.saveProperties(cfgFile, cfg);
+		}
+	}
+	
+	public String findPrimaryKeyValue(String primaryKey, String columns, String values){
+		String[] colArray = columns.split(",");
+		String[] valArray = values.split(";");
+		for(int i = 0; i < colArray.length; i++) {
+			if(primaryKey.equalsIgnoreCase(colArray[i]))
+				return valArray[i];
+		}
+		return null;
+	}
+	
+	public boolean isRepeat(String table, String stationId, String primaryKey, String columns, String values) {
+		
+		String primaryKeyValue = findPrimaryKeyValue(primaryKey, columns, values);
+		StringBuffer sqlBuffer = new StringBuffer();
+		sqlBuffer.append("select STATION_ID, " + primaryKey);
+		sqlBuffer.append(" from ");
+		sqlBuffer.append("BOS_"+table);
+		sqlBuffer.append(" where ");
+		sqlBuffer.append(String.format(" STATION_ID ='%s'", stationId));
+		sqlBuffer.append(String.format(" and %s='%s' ", primaryKey, primaryKeyValue));
+		
+		boolean isRepeat = false;
+		Statement stmt = null;
+		
+		try {
+			
+			stmt = connection.createStatement();
+			ResultSet rs = stmt.executeQuery(sqlBuffer.toString());
+			if(rs.next()) isRepeat = true;
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		
+		} finally {
+			try {
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+
+		return isRepeat;
+	}
+	
+	public boolean execTransaction(List<String> sqlList) {
+		boolean isSuccess = false;
+		Statement stmt = null;
+		
+		try {
+			connection.setAutoCommit(false);
+			
+			stmt = connection.createStatement();
+			for (int i = 0; i < sqlList.size(); i++) {
+				stmt.addBatch(sqlList.get(i).toString());
+			}
+			stmt.executeBatch();
+			
+			connection.commit();
+			isSuccess = true;
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			
+			try {
+				connection.rollback();
+				isSuccess = false;
+
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+			}
+			
+		}finally{
+			try {
+				connection.setAutoCommit(true);
+				
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			
+		}
+
+		return isSuccess;
+	}
+	
+}
